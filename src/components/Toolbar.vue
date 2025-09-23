@@ -43,27 +43,40 @@
         class="btn btn-circle"
         :class="[
           currentTool === 'line' ? 'btn-primary' :
-          canvasState === 'line-drawing' ? 'btn-secondary' : 'btn-ghost'
+          canvasState === 'drawing' ? 'btn-secondary' : 'btn-ghost'
         ]"
         @click="$emit('toolChanged', 'line')"
         title="Line Tool (L)"
       >
         <Minus class="w-5 h-5" />
       </button>
+
+      <!-- Tape Tool -->
+      <button
+        class="btn btn-circle"
+        :class="[
+          currentTool === 'tape' ? 'btn-primary' :
+          canvasState === 'drawing' ? 'btn-secondary' : 'btn-ghost'
+        ]"
+        @click="$emit('toolChanged', 'tape')"
+        title="Tape Tool (A)"
+      >
+        <RectangleHorizontal class="w-5 h-5" />
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Move, Type, Image, Minus } from 'lucide-vue-next'
+import { Move, Type, Image, Minus, RectangleHorizontal } from 'lucide-vue-next'
 
 interface ToolbarProps {
-  currentTool: 'pan' | 'text' | 'image' | 'line'
-  canvasState: 'idle' | 'text-input' | 'image-workflow' | 'line-drawing'
+  currentTool: 'pan' | 'text' | 'image' | 'line' | 'tape'
+  canvasState: 'idle' | 'text-input' | 'image-workflow' | 'drawing'
 }
 
 interface ToolbarEmits {
-  toolChanged: [tool: 'pan' | 'text' | 'image' | 'line']
+  toolChanged: [tool: 'pan' | 'text' | 'image' | 'line' | 'tape']
 }
 
 defineProps<ToolbarProps>()

@@ -173,18 +173,18 @@ export function useCanvasManager() {
     }
   }
 
-  const addLineElement = async (startX: number, startY: number, endX: number, endY: number): Promise<boolean> => {
+  const addDrawingElement = async (type: 'line' | 'tape', startX: number, startY: number, endX: number, endY: number): Promise<boolean> => {
     if (!currentCanvas.value?.id) return false
 
     try {
       const element: CanvasElement = {
         canvasId: currentCanvas.value.id,
-        type: 'line',
+        type,
         x: startX,
         y: startY,
         endX,
         endY,
-        data: '', // Lines don't need data
+        data: '', // Drawing elements don't need data
         scale: 1,
         timestamp: Date.now()
       }
@@ -199,9 +199,14 @@ export function useCanvasManager() {
 
       return true
     } catch (error) {
-      console.error('Failed to add line element:', error)
+      console.error(`Failed to add ${type} element:`, error)
       return false
     }
+  }
+
+  // Backward compatibility
+  const addLineElement = async (startX: number, startY: number, endX: number, endY: number): Promise<boolean> => {
+    return addDrawingElement('line', startX, startY, endX, endY)
   }
 
   const initializeFromUrl = async (): Promise<boolean> => {
@@ -236,6 +241,7 @@ export function useCanvasManager() {
     deleteCanvas,
     addTextElement,
     addImageElement,
+    addDrawingElement,
     addLineElement,
     initializeFromUrl
   }

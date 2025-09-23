@@ -8,7 +8,7 @@ import NewCanvasModal from './components/NewCanvasModal.vue'
 import CanvasListModal from './components/CanvasListModal.vue'
 import ImagePreview from './components/ImagePreview.vue'
 import ImageSizeModal from './components/ImageSizeModal.vue'
-import LinePreview from './components/LinePreview.vue'
+import DrawingPreview from './components/DrawingPreview.vue'
 import { useCanvasManager } from './composables/useCanvasManager'
 import { useCanvasState } from './composables/useCanvasState'
 import { processImageFile, extractImageFromClipboard } from './utils/imageProcessor'
@@ -25,7 +25,7 @@ const canvasManager = useCanvasManager()
 const canvasState = useCanvasState()
 const canvasTransform = ref({ x: 0, y: 0, scale: 1 })
 
-const handleToolChange = async (tool: 'pan' | 'text' | 'image' | 'line') => {
+const handleToolChange = async (tool: 'pan' | 'text' | 'image' | 'line' | 'tape') => {
   canvasState.setTool(tool)
   showTextInput.value = false
 
@@ -137,15 +137,15 @@ const handleMouseMove = (event: MouseEvent) => {
   if (canvasState.isInPositioning.value) {
     // Update image preview position to follow cursor
     canvasState.updateImagePosition(event.clientX, event.clientY)
-  } else if (canvasState.isLineDrawingActive.value) {
-    // Update line preview end position
+  } else if (canvasState.isDrawingActive.value) {
+    // Update drawing preview end position
     const rect = document.querySelector('[data-canvas="true"]')?.getBoundingClientRect()
     if (rect) {
       const screenX = event.clientX - rect.left
       const screenY = event.clientY - rect.top
       const canvasX = (screenX - canvasTransform.value.x) / canvasTransform.value.scale
       const canvasY = (screenY - canvasTransform.value.y) / canvasTransform.value.scale
-      canvasState.updateLineEnd(canvasX, canvasY)
+      canvasState.updateDrawingEndPosition(canvasX, canvasY)
     }
   }
 }
@@ -181,27 +181,29 @@ const handleImageSizeCancel = () => {
   canvasState.cancelImageWorkflow()
 }
 
-const handleStartLine = (canvasX: number, canvasY: number) => {
-  if (canvasState.currentTool.value === 'line' && canvasState.canvasState.value === 'idle') {
-    canvasState.startLineDrawing(canvasX, canvasY)
+const handleStartDrawing = (canvasX: number, canvasY: number) => {
+  const tool = canvasState.currentTool.value
+  if ((tool === 'line' || tool === 'tape') && canvasState.canvasState.value === 'idle') {
+    canvasState.startElementDrawing(tool, canvasX, canvasY)
   }
 }
 
-const handleFinishLine = async (canvasX: number, canvasY: number) => {
-  if (canvasState.isLineDrawingActive.value) {
-    const line = canvasState.lineWorkflow.value
-    const success = await canvasManager.addLineElement(
-      line.startX,
-      line.startY,
+const handleFinishDrawing = async (canvasX: number, canvasY: number) => {
+  if (canvasState.isDrawingActive.value) {
+    const drawing = canvasState.drawingWorkflow.value
+    const success = await canvasManager.addDrawingElement(
+      drawing.element,
+      drawing.startX,
+      drawing.startY,
       canvasX,
       canvasY
     )
 
     if (!success) {
-      console.error('Failed to add line element')
+      console.error(`Failed to add ${drawing.element} element`)
     }
 
-    canvasState.finishLineDrawing()
+    canvasState.finishElementDrawing()
   }
 }
 
@@ -217,9 +219,9 @@ const handleKeydown = (event: KeyboardEvent) => {
     return
   }
 
-  if (event.key === 'Escape' && canvasState.isLineDrawingActive.value) {
+  if (event.key === 'Escape' && canvasState.isDrawingActive.value) {
     event.preventDefault()
-    canvasState.cancelLineDrawing()
+    canvasState.cancelElementDrawing()
     return
   }
 
@@ -237,6 +239,9 @@ const handleKeydown = (event: KeyboardEvent) => {
   } else if (event.key === 'l') {
     event.preventDefault()
     handleToolChange('line')
+  } else if (event.key === 'a') {
+    event.preventDefault()
+    handleToolChange('tape')
   }
 }
 
@@ -282,9 +287,10 @@ onUnmounted(() => {
     class="h-screen w-screen overflow-hidden bg-base-200"
     data-theme="light"
     :data-image-preview-active="canvasState.isImageWorkflowActive.value"
-    :data-line-drawing-active="canvasState.isLineDrawingActive.value"
+    :data-line-drawing-active="canvasState.isDrawingActive.value"
     :data-text-tool-active="canvasState.currentTool.value === 'text' && canvasState.canvasState.value === 'idle'"
     :data-line-tool-active="canvasState.currentTool.value === 'line' && canvasState.canvasState.value === 'idle'"
+    :data-tape-tool-active="canvasState.currentTool.value === 'tape' && canvasState.canvasState.value === 'idle'"
   >
     <!-- Canvas Management Header -->
     <div class="fixed top-4 left-4 z-50">
@@ -315,8 +321,8 @@ onUnmounted(() => {
       :elements="canvasManager.elements.value"
       @add-text="handleAddText"
       @add-image="handleImageClick"
-      @start-line="handleStartLine"
-      @finish-line="handleFinishLine"
+      @start-line="handleStartDrawing"
+      @finish-line="handleFinishDrawing"
       @transform-change="handleCanvasTransformChange"
     />
 
@@ -351,12 +357,13 @@ onUnmounted(() => {
 
     <ImagePreview :preview="canvasState.imageWorkflow.value" />
 
-    <LinePreview
-      :is-active="canvasState.isLineDrawingActive.value"
-      :start-x="canvasState.lineWorkflow.value.startX * canvasTransform.scale + canvasTransform.x"
-      :start-y="canvasState.lineWorkflow.value.startY * canvasTransform.scale + canvasTransform.y"
-      :end-x="canvasState.lineWorkflow.value.endX * canvasTransform.scale + canvasTransform.x"
-      :end-y="canvasState.lineWorkflow.value.endY * canvasTransform.scale + canvasTransform.y"
+    <DrawingPreview
+      :is-active="canvasState.isDrawingActive.value"
+      :element-type="canvasState.drawingWorkflow.value.element"
+      :start-x="canvasState.drawingWorkflow.value.startX * canvasTransform.scale + canvasTransform.x"
+      :start-y="canvasState.drawingWorkflow.value.startY * canvasTransform.scale + canvasTransform.y"
+      :end-x="canvasState.drawingWorkflow.value.endX * canvasTransform.scale + canvasTransform.x"
+      :end-y="canvasState.drawingWorkflow.value.endY * canvasTransform.scale + canvasTransform.y"
     />
 
     <ImageSizeModal

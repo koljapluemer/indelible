@@ -1,8 +1,9 @@
 import { ref, computed } from 'vue'
+import { createDrawingWorkflow, startDrawing, updateDrawingEnd, finishDrawing, cancelDrawing, type DrawingWorkflow, type DrawingElement } from '../utils/drawingUtils'
 
 // Main canvas state machine
-type CanvasTool = 'pan' | 'text' | 'image' | 'line'
-type CanvasState = 'idle' | 'text-input' | 'image-workflow' | 'line-drawing'
+type CanvasTool = 'pan' | 'text' | 'image' | 'line' | 'tape'
+type CanvasState = 'idle' | 'text-input' | 'image-workflow' | 'drawing'
 
 // Image workflow - two step process
 type ImageState = 'size-selection' | 'positioning'
@@ -21,13 +22,7 @@ interface ImageWorkflow {
   y: number
 }
 
-interface LineWorkflow {
-  isActive: boolean
-  startX: number
-  startY: number
-  endX: number
-  endY: number
-}
+// Use the drawing workflow from utils
 
 const currentTool = ref<CanvasTool>('pan')
 const canvasState = ref<CanvasState>('idle')
@@ -44,13 +39,7 @@ const imageWorkflow = ref<ImageWorkflow>({
   y: window.innerHeight / 2
 })
 
-const lineWorkflow = ref<LineWorkflow>({
-  isActive: false,
-  startX: 0,
-  startY: 0,
-  endX: 0,
-  endY: 0
-})
+const drawingWorkflow = ref<DrawingWorkflow>(createDrawingWorkflow('line'))
 
 export function useCanvasState() {
   const setTool = (tool: CanvasTool) => {
@@ -58,10 +47,10 @@ export function useCanvasState() {
     if (tool !== 'image') {
       imageWorkflow.value.isActive = false
     }
-    if (tool !== 'line') {
-      lineWorkflow.value.isActive = false
+    if (tool !== 'line' && tool !== 'tape') {
+      drawingWorkflow.value = cancelDrawing(drawingWorkflow.value)
     }
-    if (tool !== 'image' && tool !== 'line') {
+    if (tool !== 'image' && tool !== 'line' && tool !== 'tape') {
       canvasState.value = 'idle'
     }
     currentTool.value = tool
@@ -127,31 +116,24 @@ export function useCanvasState() {
     canvasState.value = 'idle'
   }
 
-  const startLineDrawing = (startX: number, startY: number) => {
-    canvasState.value = 'line-drawing'
-    lineWorkflow.value = {
-      isActive: true,
-      startX,
-      startY,
-      endX: startX,
-      endY: startY
+  const startElementDrawing = (element: DrawingElement, startX: number, startY: number) => {
+    canvasState.value = 'drawing'
+    drawingWorkflow.value = startDrawing(drawingWorkflow.value, element, startX, startY)
+  }
+
+  const updateDrawingEndPosition = (endX: number, endY: number) => {
+    if (drawingWorkflow.value.isActive) {
+      drawingWorkflow.value = updateDrawingEnd(drawingWorkflow.value, endX, endY)
     }
   }
 
-  const updateLineEnd = (endX: number, endY: number) => {
-    if (lineWorkflow.value.isActive) {
-      lineWorkflow.value.endX = endX
-      lineWorkflow.value.endY = endY
-    }
-  }
-
-  const finishLineDrawing = () => {
-    lineWorkflow.value.isActive = false
+  const finishElementDrawing = () => {
+    drawingWorkflow.value = finishDrawing(drawingWorkflow.value)
     canvasState.value = 'idle'
   }
 
-  const cancelLineDrawing = () => {
-    lineWorkflow.value.isActive = false
+  const cancelElementDrawing = () => {
+    drawingWorkflow.value = cancelDrawing(drawingWorkflow.value)
     canvasState.value = 'idle'
   }
 
@@ -160,7 +142,7 @@ export function useCanvasState() {
     currentTool: computed(() => currentTool.value),
     canvasState: computed(() => canvasState.value),
     imageWorkflow: computed(() => imageWorkflow.value),
-    lineWorkflow: computed(() => lineWorkflow.value),
+    drawingWorkflow: computed(() => drawingWorkflow.value),
 
     // Main state machine
     setTool,
@@ -174,21 +156,21 @@ export function useCanvasState() {
     cancelImageWorkflow,
     finishImageWorkflow,
 
-    // Line workflow sub-state machine
-    startLineDrawing,
-    updateLineEnd,
-    finishLineDrawing,
-    cancelLineDrawing,
+    // Drawing workflow sub-state machine (line, tape)
+    startElementDrawing,
+    updateDrawingEndPosition,
+    finishElementDrawing,
+    cancelElementDrawing,
 
     // Computed state checks
     isImageWorkflowActive: computed(() => imageWorkflow.value.isActive),
     isInSizeSelection: computed(() => imageWorkflow.value.isActive && imageWorkflow.value.state === 'size-selection'),
     isInPositioning: computed(() => imageWorkflow.value.isActive && imageWorkflow.value.state === 'positioning'),
-    isLineDrawingActive: computed(() => lineWorkflow.value.isActive),
+    isDrawingActive: computed(() => drawingWorkflow.value.isActive),
     canHandleCanvasClick: computed(() =>
       canvasState.value === 'idle' ||
       canvasState.value === 'image-workflow' ||
-      canvasState.value === 'line-drawing'
+      canvasState.value === 'drawing'
     )
   }
 }

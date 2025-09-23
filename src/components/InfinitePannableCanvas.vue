@@ -74,6 +74,32 @@
             class="text-base-content"
           />
         </svg>
+        <svg
+          v-else-if="element.type === 'tape'"
+          class="absolute pointer-events-none"
+          :style="{
+            width: Math.abs((element.endX || element.x) - element.x) + 84 + 'px',
+            height: Math.abs((element.endY || element.y) - element.y) + 84 + 'px',
+            left: (Math.min(element.x, element.endX || element.x) - element.x - 42) + 'px',
+            top: (Math.min(element.y, element.endY || element.y) - element.y - 42) + 'px'
+          }"
+        >
+          <defs>
+            <pattern :id="`tape-dots-${element.id}`" patternUnits="userSpaceOnUse" width="8" height="8">
+              <rect width="8" height="8" fill="#f5f5dc" />
+              <circle cx="4" cy="4" r="1" fill="#e6d7a3" />
+            </pattern>
+          </defs>
+          <line
+            :x1="element.x <= (element.endX || element.x) ? 42 : Math.abs((element.endX || element.x) - element.x) + 42"
+            :y1="element.y <= (element.endY || element.y) ? 42 : Math.abs((element.endY || element.y) - element.y) + 42"
+            :x2="element.x <= (element.endX || element.x) ? Math.abs((element.endX || element.x) - element.x) + 42 : 42"
+            :y2="element.y <= (element.endY || element.y) ? Math.abs((element.endY || element.y) - element.y) + 42 : 42"
+            :stroke="`url(#tape-dots-${element.id})`"
+            stroke-width="80"
+            stroke-linecap="round"
+          />
+        </svg>
       </div>
     </div>
   </div>
@@ -190,11 +216,11 @@ const handleCanvasClick = (event: MouseEvent) => {
     emit('finishLine', canvasX, canvasY)
   } else {
     // Determine action based on current tool state from parent
-    // We'll need to check the current tool from parent component
     const isTextTool = app.querySelector('[data-text-tool-active="true"]')
     const isLineTool = app.querySelector('[data-line-tool-active="true"]')
+    const isTapeTool = app.querySelector('[data-tape-tool-active="true"]')
 
-    if (isLineTool) {
+    if (isLineTool || isTapeTool) {
       emit('startLine', canvasX, canvasY)
     } else if (isTextTool) {
       emit('addText', canvasX, canvasY, screenX, screenY)
