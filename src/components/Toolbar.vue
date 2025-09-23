@@ -17,7 +17,8 @@
       <button
         class="btn btn-circle"
         :class="[
-          currentTool === 'text' ? 'btn-primary' : 'btn-ghost'
+          currentTool === 'text' ? 'btn-primary' :
+          canvasState === 'text-input' ? 'btn-secondary' : 'btn-ghost'
         ]"
         @click="$emit('toolChanged', 'text')"
         title="Text Tool (T)"
@@ -45,6 +46,7 @@ import { Move, Type, Image } from 'lucide-vue-next'
 
 interface ToolbarProps {
   currentTool: 'pan' | 'text' | 'image'
+  canvasState: 'idle' | 'text-input' | 'image-workflow'
 }
 
 interface ToolbarEmits {

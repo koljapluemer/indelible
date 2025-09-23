@@ -1,6 +1,7 @@
 <template>
   <div
     class="html-content text-base-content"
+    style="word-wrap: break-word; white-space: pre-wrap;"
     v-html="sanitizedContent"
   />
 </template>

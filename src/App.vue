@@ -18,6 +18,7 @@ const textInputPosition = ref({ x: 0, y: 0 })
 const pendingTextPosition = ref({ x: 0, y: 0 })
 const showNewCanvasModal = ref(false)
 const showCanvasListModal = ref(false)
+const isStartingTextInput = ref(false)
 
 const canvasManager = useCanvasManager()
 const canvasState = useCanvasState()
@@ -50,7 +51,8 @@ const handleToolChange = async (tool: 'pan' | 'text' | 'image') => {
 }
 
 const handleAddText = (canvasX: number, canvasY: number, screenX: number, screenY: number) => {
-  if (canvasState.currentTool.value === 'text') {
+  if (canvasState.currentTool.value === 'text' && canvasState.canvasState.value === 'idle') {
+    isStartingTextInput.value = true
     pendingTextPosition.value = { x: canvasX, y: canvasY }
     textInputPosition.value = { x: screenX, y: screenY }
     showTextInput.value = true
@@ -58,11 +60,11 @@ const handleAddText = (canvasX: number, canvasY: number, screenX: number, screen
   }
 }
 
-const handleTextConfirm = async (text: string) => {
+const handleTextConfirm = async (html: string) => {
   const success = await canvasManager.addTextElement(
     pendingTextPosition.value.x,
     pendingTextPosition.value.y,
-    text
+    html
   )
 
   if (!success) {
@@ -194,10 +196,27 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 }
 
+const handleDocumentClick = (event: MouseEvent) => {
+  // Ignore clicks that are starting text input
+  if (isStartingTextInput.value) {
+    isStartingTextInput.value = false
+    return
+  }
+
+  // If text input is visible and user clicks outside of it, save the text
+  if (showTextInput.value) {
+    const textInput = document.querySelector('[contenteditable="true"]')
+    if (textInput && !textInput.contains(event.target as Node)) {
+      handleTextConfirm(textInput.innerHTML)
+    }
+  }
+}
+
 onMounted(async () => {
   document.addEventListener('keydown', handleKeydown)
   document.addEventListener('paste', handlePaste)
   document.addEventListener('mousemove', handleMouseMove)
+  document.addEventListener('click', handleDocumentClick)
 
   const hasCanvas = await canvasManager.initializeFromUrl()
   if (!hasCanvas) {
@@ -210,6 +229,7 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown)
   document.removeEventListener('paste', handlePaste)
   document.removeEventListener('mousemove', handleMouseMove)
+  document.removeEventListener('click', handleDocumentClick)
 })
 </script>
 
@@ -249,6 +269,7 @@ onUnmounted(() => {
 
     <Toolbar
       :current-tool="canvasState.currentTool.value"
+      :canvas-state="canvasState.canvasState.value"
       @tool-changed="handleToolChange"
     />
 

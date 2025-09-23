@@ -42,7 +42,10 @@
           transform: `scale(${element.scale})`
         }"
       >
-        <HtmlText v-if="element.type === 'text'" :content="element.data" />
+        <HtmlText
+          v-if="element.type === 'text'"
+          :content="element.data"
+        />
         <img
           v-else-if="element.type === 'image'"
           :src="element.data"

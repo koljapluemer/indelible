@@ -15,8 +15,8 @@ export interface CanvasElement {
   y: number
   data: string
   scale: number
-  width?: number
-  height?: number
+  width?: number  // Only used for images
+  height?: number // Only used for images
   timestamp: number
 }
 

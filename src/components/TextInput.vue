@@ -1,55 +1,23 @@
 <template>
+  <!-- Invisible text editor positioned exactly where text will appear -->
   <div
     v-if="isVisible"
-    class="fixed z-50"
+    ref="textEditor"
+    contenteditable="true"
+    class="fixed z-50 text-base-content focus:outline-none"
     :style="{
       left: position.x + 'px',
       top: position.y + 'px',
+      background: 'transparent',
+      border: 'none',
+      minWidth: '20px',
+      minHeight: '1.5rem',
+      wordWrap: 'break-word',
+      whiteSpace: 'pre-wrap'
     }"
-  >
-    <!-- Formatting toolbar -->
-    <div class="mb-2 flex gap-1">
-      <button
-        @click="toggleBold"
-        class="btn btn-xs"
-        :class="{ 'btn-primary': isBold }"
-        title="Bold (Ctrl+B)"
-      >
-        <strong>B</strong>
-      </button>
-      <button
-        @click="toggleItalic"
-        class="btn btn-xs"
-        :class="{ 'btn-primary': isItalic }"
-        title="Italic (Ctrl+I)"
-      >
-        <em>I</em>
-      </button>
-      <button
-        @click="confirmText"
-        class="btn btn-xs btn-primary ml-2"
-      >
-        Save
-      </button>
-      <button
-        @click="cancelText"
-        class="btn btn-xs btn-ghost"
-      >
-        Cancel
-      </button>
-    </div>
-
-    <!-- Contenteditable text area -->
-    <div
-      ref="textEditor"
-      contenteditable="true"
-      class="min-w-32 min-h-6 p-2 bg-base-100 border-2 border-primary rounded text-base-content focus:outline-none"
-      style="max-width: 300px; word-wrap: break-word;"
-      @keydown="handleKeydown"
-      @input="updateContent"
-      @blur="handleBlur"
-    />
-  </div>
+    @keydown="handleKeydown"
+    @input="updateContent"
+  />
 </template>
 
 <script setup lang="ts">
@@ -69,63 +37,24 @@ const props = defineProps<TextInputProps>()
 const emit = defineEmits<TextInputEmits>()
 
 const textEditor = ref<HTMLDivElement>()
-const isBold = ref(false)
-const isItalic = ref(false)
-
-const toggleBold = () => {
-  document.execCommand('bold', false)
-  updateFormatStates()
-}
-
-const toggleItalic = () => {
-  document.execCommand('italic', false)
-  updateFormatStates()
-}
-
-const updateFormatStates = () => {
-  isBold.value = document.queryCommandState('bold')
-  isItalic.value = document.queryCommandState('italic')
-}
 
 const updateContent = () => {
-  updateFormatStates()
+  // Keep content updated
 }
 
 const handleKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Enter' && !event.shiftKey) {
-    event.preventDefault()
-    confirmText()
-  } else if (event.key === 'Escape') {
+  if (event.key === 'Escape') {
     event.preventDefault()
     cancelText()
   } else if (event.ctrlKey || event.metaKey) {
     if (event.key === 'b') {
       event.preventDefault()
-      toggleBold()
+      document.execCommand('bold', false)
     } else if (event.key === 'i') {
       event.preventDefault()
-      toggleItalic()
+      document.execCommand('italic', false)
     }
   }
-}
-
-const handleBlur = (event: FocusEvent) => {
-  // Don't close if clicking on toolbar buttons
-  const relatedTarget = event.relatedTarget as HTMLElement
-  if (relatedTarget?.closest('.btn')) {
-    return
-  }
-  confirmText()
-}
-
-const confirmText = () => {
-  const html = textEditor.value?.innerHTML || ''
-  if (html.trim() && html !== '<br>') {
-    emit('confirm', html.trim())
-  } else {
-    emit('cancel')
-  }
-  clearEditor()
 }
 
 const cancelText = () => {
@@ -137,8 +66,6 @@ const clearEditor = () => {
   if (textEditor.value) {
     textEditor.value.innerHTML = ''
   }
-  isBold.value = false
-  isItalic.value = false
 }
 
 watch(() => props.isVisible, async (visible) => {
