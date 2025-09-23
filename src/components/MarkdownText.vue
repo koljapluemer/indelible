@@ -24,7 +24,7 @@ const markdownOptions = {
   breaks: true
 }
 
-const markdownPlugins: any[] = []
+const markdownPlugins: unknown[] = []
 </script>
 
 <style scoped>

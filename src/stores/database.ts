@@ -7,23 +7,27 @@ export interface Canvas {
   updatedAt: number
 }
 
-export interface TextElement {
+export interface CanvasElement {
   id?: number
   canvasId: number
+  type: 'text' | 'image'
   x: number
   y: number
-  content: string
+  data: string
+  scale: number
+  width?: number
+  height?: number
   timestamp: number
 }
 
 const db = new Dexie('IndelibleDB') as Dexie & {
   canvases: EntityTable<Canvas, 'id'>
-  textElements: EntityTable<TextElement, 'id'>
+  canvasElements: EntityTable<CanvasElement, 'id'>
 }
 
-db.version(1).stores({
+db.version(2).stores({
   canvases: '++id, slug, createdAt, updatedAt',
-  textElements: '++id, canvasId, x, y, content, timestamp'
+  canvasElements: '++id, canvasId, type, x, y, data, scale, width, height, timestamp'
 })
 
 export { db }

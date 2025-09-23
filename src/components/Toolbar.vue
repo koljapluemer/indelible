@@ -24,19 +24,31 @@
       >
         <Type class="w-5 h-5" />
       </button>
+
+      <!-- Image Tool -->
+      <button
+        class="btn btn-circle"
+        :class="[
+          currentTool === 'image' ? 'btn-primary' : 'btn-ghost'
+        ]"
+        @click="$emit('toolChanged', 'image')"
+        title="Image Tool (I)"
+      >
+        <Image class="w-5 h-5" />
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Move, Type } from 'lucide-vue-next'
+import { Move, Type, Image } from 'lucide-vue-next'
 
 interface ToolbarProps {
-  currentTool: 'pan' | 'text'
+  currentTool: 'pan' | 'text' | 'image'
 }
 
 interface ToolbarEmits {
-  toolChanged: [tool: 'pan' | 'text']
+  toolChanged: [tool: 'pan' | 'text' | 'image']
 }
 
 defineProps<ToolbarProps>()

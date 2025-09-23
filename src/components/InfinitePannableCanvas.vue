@@ -31,17 +31,25 @@
       :style="canvasStyle"
       style="width: 10000px; height: 10000px;"
     >
-      <!-- Text elements -->
+      <!-- Canvas elements -->
       <div
-        v-for="textElement in textElements"
-        :key="textElement.id"
+        v-for="element in elements"
+        :key="element.id"
         class="absolute pointer-events-none select-none"
         :style="{
-          left: textElement.x + 'px',
-          top: textElement.y + 'px',
+          left: element.x + 'px',
+          top: element.y + 'px',
+          transform: `scale(${element.scale})`
         }"
       >
-        <MarkdownText :content="textElement.content" />
+        <MarkdownText v-if="element.type === 'text'" :content="element.data" />
+        <img
+          v-else-if="element.type === 'image'"
+          :src="element.data"
+          :width="element.width"
+          :height="element.height"
+          class="block"
+        />
       </div>
     </div>
   </div>
@@ -50,15 +58,17 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import MarkdownText from './MarkdownText.vue'
-import type { TextElement } from '../stores/database'
+import type { CanvasElement } from '../stores/database'
 
 interface CanvasProps {
   isPanMode: boolean
-  textElements: TextElement[]
+  elements: CanvasElement[]
 }
 
 interface CanvasEmits {
   addText: [canvasX: number, canvasY: number, screenX: number, screenY: number]
+  addImage: [canvasX: number, canvasY: number]
+  transformChange: [transform: { x: number, y: number, scale: number }]
 }
 
 const props = defineProps<CanvasProps>()
@@ -95,6 +105,8 @@ const handlePanning = (event: MouseEvent) => {
 
   lastPanPoint.value = { x: event.clientX, y: event.clientY }
   event.preventDefault()
+
+  emit('transformChange', { ...transform.value })
 }
 
 const stopPanning = () => {
@@ -122,6 +134,8 @@ const handleWheel = (event: WheelEvent) => {
       // Adjust position to zoom into the mouse position
       transform.value.x = mouseX - beforeZoomX * newScale
       transform.value.y = mouseY - beforeZoomY * newScale
+
+      emit('transformChange', { ...transform.value })
     }
   }
 }
@@ -139,6 +153,12 @@ const handleCanvasClick = (event: MouseEvent) => {
   const canvasX = (screenX - transform.value.x) / transform.value.scale
   const canvasY = (screenY - transform.value.y) / transform.value.scale
 
-  emit('addText', canvasX, canvasY, screenX, screenY)
+  // Check if we're in image preview mode by checking parent component state
+  const app = document.querySelector('[data-image-preview-active="true"]')
+  if (app) {
+    emit('addImage', canvasX, canvasY)
+  } else {
+    emit('addText', canvasX, canvasY, screenX, screenY)
+  }
 }
 </script>

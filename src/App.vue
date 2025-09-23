@@ -6,9 +6,13 @@ import Toolbar from './components/Toolbar.vue'
 import TextInput from './components/TextInput.vue'
 import NewCanvasModal from './components/NewCanvasModal.vue'
 import CanvasListModal from './components/CanvasListModal.vue'
+import ImagePreview from './components/ImagePreview.vue'
+import ImageSizeModal from './components/ImageSizeModal.vue'
 import { useCanvasManager } from './composables/useCanvasManager'
+import { useCanvasState } from './composables/useCanvasState'
+import { processImageFile, extractImageFromClipboard } from './utils/imageProcessor'
+import { openFileDialog } from './utils/fileUpload'
 
-const currentTool = ref<'pan' | 'text'>('pan')
 const showTextInput = ref(false)
 const textInputPosition = ref({ x: 0, y: 0 })
 const pendingTextPosition = ref({ x: 0, y: 0 })
@@ -16,17 +20,41 @@ const showNewCanvasModal = ref(false)
 const showCanvasListModal = ref(false)
 
 const canvasManager = useCanvasManager()
+const canvasState = useCanvasState()
+const canvasTransform = ref({ x: 0, y: 0, scale: 1 })
 
-const handleToolChange = (tool: 'pan' | 'text') => {
-  currentTool.value = tool
+const handleToolChange = async (tool: 'pan' | 'text' | 'image') => {
+  canvasState.setTool(tool)
   showTextInput.value = false
+
+  // If image tool is selected, open file dialog
+  if (tool === 'image') {
+    try {
+      const file = await openFileDialog()
+      if (file) {
+        const processedImage = await processImageFile(file)
+        canvasState.startImageWorkflow(
+          processedImage.data,
+          processedImage.width,
+          processedImage.height
+        )
+      } else {
+        // User cancelled file dialog, reset to pan tool
+        canvasState.setTool('pan')
+      }
+    } catch (error) {
+      console.error('Failed to process image:', error)
+      canvasState.setTool('pan')
+    }
+  }
 }
 
 const handleAddText = (canvasX: number, canvasY: number, screenX: number, screenY: number) => {
-  if (currentTool.value === 'text') {
+  if (canvasState.currentTool.value === 'text') {
     pendingTextPosition.value = { x: canvasX, y: canvasY }
     textInputPosition.value = { x: screenX, y: screenY }
     showTextInput.value = true
+    canvasState.startTextInput()
   }
 }
 
@@ -42,10 +70,12 @@ const handleTextConfirm = async (text: string) => {
   }
 
   showTextInput.value = false
+  canvasState.completeTextInput()
 }
 
 const handleTextCancel = () => {
   showTextInput.value = false
+  canvasState.completeTextInput()
 }
 
 const handleCreateCanvas = async (slug: string) => {
@@ -73,23 +103,101 @@ const handleDeleteCanvas = async (canvasId: number) => {
   }
 }
 
+const handleCanvasTransformChange = (transform: { x: number, y: number, scale: number }) => {
+  canvasTransform.value = transform
+}
+
+const handlePaste = async (event: ClipboardEvent) => {
+  const isTyping = event.target instanceof HTMLInputElement ||
+                   event.target instanceof HTMLTextAreaElement ||
+                   (event.target as HTMLElement)?.isContentEditable
+
+  if (isTyping) return
+
+  const imageFile = extractImageFromClipboard(event)
+  if (imageFile) {
+    event.preventDefault()
+    try {
+      const processedImage = await processImageFile(imageFile)
+      canvasState.startImageWorkflow(
+        processedImage.data,
+        processedImage.width,
+        processedImage.height
+      )
+    } catch (error) {
+      console.error('Failed to process image:', error)
+    }
+  }
+}
+
+const handleMouseMove = (event: MouseEvent) => {
+  if (canvasState.isInPositioning.value) {
+    // Update image preview position to follow cursor
+    canvasState.updateImagePosition(event.clientX, event.clientY)
+  }
+}
+
+
+const handleImageClick = async (canvasX: number, canvasY: number) => {
+  if (!canvasState.isInPositioning.value) return
+
+  // Place image at canvas coordinates
+  const workflow = canvasState.imageWorkflow.value
+
+  const success = await canvasManager.addImageElement(
+    canvasX,
+    canvasY,
+    workflow.data,
+    workflow.displayWidth,
+    workflow.displayHeight,
+    1 // Always scale 1 since displayWidth/Height already account for sizing
+  )
+
+  if (!success) {
+    console.error('Failed to add image element')
+  } else {
+    canvasState.finishImageWorkflow()
+  }
+}
+
+const handleImageSizeSelect = (size: 'small' | 'medium' | 'large') => {
+  canvasState.selectImageSize(size)
+}
+
+const handleImageSizeCancel = () => {
+  canvasState.cancelImageWorkflow()
+}
+
 const handleKeydown = (event: KeyboardEvent) => {
   // Don't handle shortcuts if user is typing in an input
   const isTyping = event.target instanceof HTMLInputElement ||
                    event.target instanceof HTMLTextAreaElement ||
-                   (event.target as Element)?.isContentEditable
+                   (event.target as HTMLElement)?.isContentEditable
 
-  if (event.code === 'Space' && !showTextInput.value && !isTyping) {
+  if (event.key === 'Escape' && canvasState.isImageWorkflowActive.value) {
     event.preventDefault()
-    currentTool.value = 'pan'
-  } else if (event.key === 't' && !showTextInput.value && !isTyping) {
+    canvasState.cancelImageWorkflow()
+    return
+  }
+
+  if (isTyping || showTextInput.value) return
+
+  if (event.code === 'Space') {
     event.preventDefault()
-    currentTool.value = 'text'
+    canvasState.setTool('pan')
+  } else if (event.key === 't') {
+    event.preventDefault()
+    canvasState.setTool('text')
+  } else if (event.key === 'i') {
+    event.preventDefault()
+    handleToolChange('image')
   }
 }
 
 onMounted(async () => {
   document.addEventListener('keydown', handleKeydown)
+  document.addEventListener('paste', handlePaste)
+  document.addEventListener('mousemove', handleMouseMove)
 
   const hasCanvas = await canvasManager.initializeFromUrl()
   if (!hasCanvas) {
@@ -100,11 +208,13 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown)
+  document.removeEventListener('paste', handlePaste)
+  document.removeEventListener('mousemove', handleMouseMove)
 })
 </script>
 
 <template>
-  <div class="h-screen w-screen overflow-hidden bg-base-200" data-theme="light">
+  <div class="h-screen w-screen overflow-hidden bg-base-200" data-theme="light" :data-image-preview-active="canvasState.isImageWorkflowActive.value">
     <!-- Canvas Management Header -->
     <div class="fixed top-4 left-4 z-50">
       <div class="flex items-center gap-3 bg-base-100 p-2 rounded-lg shadow-lg">
@@ -130,13 +240,15 @@ onUnmounted(() => {
     </div>
 
     <InfinitePannableCanvas
-      :is-pan-mode="currentTool === 'pan'"
-      :text-elements="canvasManager.textElements.value"
+      :is-pan-mode="canvasState.currentTool.value === 'pan'"
+      :elements="canvasManager.elements.value"
       @add-text="handleAddText"
+      @add-image="handleImageClick"
+      @transform-change="handleCanvasTransformChange"
     />
 
     <Toolbar
-      :current-tool="currentTool"
+      :current-tool="canvasState.currentTool.value"
       @tool-changed="handleToolChange"
     />
 
@@ -161,6 +273,14 @@ onUnmounted(() => {
       @close="showCanvasListModal = false"
       @switch="handleSwitchCanvas"
       @delete="handleDeleteCanvas"
+    />
+
+    <ImagePreview :preview="canvasState.imageWorkflow.value" />
+
+    <ImageSizeModal
+      v-if="canvasState.isInSizeSelection.value"
+      @select-size="handleImageSizeSelect"
+      @cancel="handleImageSizeCancel"
     />
   </div>
 </template>

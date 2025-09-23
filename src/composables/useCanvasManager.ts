@@ -1,9 +1,9 @@
 import { ref, computed } from 'vue'
-import { db, type Canvas, type TextElement } from '../stores/database'
+import { db, type Canvas, type CanvasElement } from '../stores/database'
 
 const currentCanvas = ref<Canvas | null>(null)
 const canvases = ref<Canvas[]>([])
-const textElements = ref<TextElement[]>([])
+const elements = ref<CanvasElement[]>([])
 
 export function useCanvasManager() {
   const isValidSlug = (slug: string): boolean => {
@@ -36,7 +36,7 @@ export function useCanvasManager() {
 
       currentCanvas.value = canvas
       if (canvas.id) {
-        textElements.value = await db.textElements.where('canvasId').equals(canvas.id).toArray()
+        elements.value = await db.canvasElements.where('canvasId').equals(canvas.id).toArray()
       }
       setCanvasInUrl(slug)
       return true
@@ -65,7 +65,7 @@ export function useCanvasManager() {
       canvas.id = id
 
       currentCanvas.value = canvas
-      textElements.value = []
+      elements.value = []
       setCanvasInUrl(slug)
       await loadCanvases()
       return true
@@ -81,8 +81,8 @@ export function useCanvasManager() {
 
   const deleteCanvas = async (canvasId: number): Promise<boolean> => {
     try {
-      // Delete all text elements for this canvas
-      await db.textElements.where('canvasId').equals(canvasId).delete()
+      // Delete all elements for this canvas
+      await db.canvasElements.where('canvasId').equals(canvasId).delete()
 
       // Delete the canvas
       await db.canvases.delete(canvasId)
@@ -90,7 +90,7 @@ export function useCanvasManager() {
       // If this was the current canvas, clear it
       if (currentCanvas.value?.id === canvasId) {
         currentCanvas.value = null
-        textElements.value = []
+        elements.value = []
 
         // Try to load the first available canvas
         await loadCanvases()
@@ -114,32 +114,61 @@ export function useCanvasManager() {
   }
 
   const addTextElement = async (x: number, y: number, content: string): Promise<boolean> => {
-    if (!currentCanvas.value) return false
+    if (!currentCanvas.value?.id) return false
 
     try {
-      if (!currentCanvas.value.id) return false
-
-      const textElement: TextElement = {
+      const element: CanvasElement = {
         canvasId: currentCanvas.value.id,
+        type: 'text',
         x,
         y,
-        content,
+        data: content,
+        scale: 1,
         timestamp: Date.now()
       }
 
-      const id = await db.textElements.add(textElement)
-      textElement.id = id
-      textElements.value.push(textElement)
+      const id = await db.canvasElements.add(element)
+      element.id = id
+      elements.value.push(element)
 
       // Update canvas timestamp
-      if (currentCanvas.value.id) {
-        await db.canvases.update(currentCanvas.value.id, { updatedAt: Date.now() })
-        currentCanvas.value.updatedAt = Date.now()
-      }
+      await db.canvases.update(currentCanvas.value.id, { updatedAt: Date.now() })
+      currentCanvas.value.updatedAt = Date.now()
 
       return true
     } catch (error) {
       console.error('Failed to add text element:', error)
+      return false
+    }
+  }
+
+  const addImageElement = async (x: number, y: number, data: string, width: number, height: number, scale: number): Promise<boolean> => {
+    if (!currentCanvas.value?.id) return false
+
+    try {
+      const element: CanvasElement = {
+        canvasId: currentCanvas.value.id,
+        type: 'image',
+        x,
+        y,
+        data,
+        scale,
+        width,
+        height,
+        timestamp: Date.now()
+      }
+
+      const id = await db.canvasElements.add(element)
+      element.id = id
+      elements.value.push(element)
+
+      // Update canvas timestamp
+      await db.canvases.update(currentCanvas.value.id, { updatedAt: Date.now() })
+      currentCanvas.value.updatedAt = Date.now()
+
+      return true
+    } catch (error) {
+      console.error('Failed to add image element:', error)
       return false
     }
   }
@@ -165,7 +194,7 @@ export function useCanvasManager() {
     // State
     currentCanvas: computed(() => currentCanvas.value),
     canvases: computed(() => canvases.value),
-    textElements: computed(() => textElements.value),
+    elements: computed(() => elements.value),
 
     // Methods
     isValidSlug,
@@ -175,6 +204,7 @@ export function useCanvasManager() {
     switchCanvas,
     deleteCanvas,
     addTextElement,
+    addImageElement,
     initializeFromUrl
   }
 }
