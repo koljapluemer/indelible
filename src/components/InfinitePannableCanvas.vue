@@ -50,14 +50,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import MarkdownText from './MarkdownText.vue'
-
-export interface TextElement {
-  id: string
-  x: number
-  y: number
-  content: string
-  timestamp: number
-}
+import type { TextElement } from '../stores/database'
 
 interface CanvasProps {
   isPanMode: boolean

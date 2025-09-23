@@ -1,15 +1,21 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { Plus, List } from 'lucide-vue-next'
 import InfinitePannableCanvas from './components/InfinitePannableCanvas.vue'
 import Toolbar from './components/Toolbar.vue'
 import TextInput from './components/TextInput.vue'
-import { db, type TextElement } from './stores/database'
+import NewCanvasModal from './components/NewCanvasModal.vue'
+import CanvasListModal from './components/CanvasListModal.vue'
+import { useCanvasManager } from './composables/useCanvasManager'
 
 const currentTool = ref<'pan' | 'text'>('pan')
-const textElements = ref<TextElement[]>([])
 const showTextInput = ref(false)
 const textInputPosition = ref({ x: 0, y: 0 })
 const pendingTextPosition = ref({ x: 0, y: 0 })
+const showNewCanvasModal = ref(false)
+const showCanvasListModal = ref(false)
+
+const canvasManager = useCanvasManager()
 
 const handleToolChange = (tool: 'pan' | 'text') => {
   currentTool.value = tool
@@ -25,19 +31,14 @@ const handleAddText = (canvasX: number, canvasY: number, screenX: number, screen
 }
 
 const handleTextConfirm = async (text: string) => {
-  const newTextElement: TextElement = {
-    x: pendingTextPosition.value.x,
-    y: pendingTextPosition.value.y,
-    content: text,
-    timestamp: Date.now()
-  }
+  const success = await canvasManager.addTextElement(
+    pendingTextPosition.value.x,
+    pendingTextPosition.value.y,
+    text
+  )
 
-  try {
-    const id = await db.textElements.add(newTextElement)
-    newTextElement.id = id
-    textElements.value.push(newTextElement)
-  } catch (error) {
-    console.error('Failed to save text element:', error)
+  if (!success) {
+    console.error('Failed to add text element')
   }
 
   showTextInput.value = false
@@ -47,27 +48,54 @@ const handleTextCancel = () => {
   showTextInput.value = false
 }
 
+const handleCreateCanvas = async (slug: string) => {
+  const success = await canvasManager.createCanvas(slug)
+  if (!success) {
+    alert('Failed to create canvas. Slug might already exist or be invalid.')
+  }
+  showNewCanvasModal.value = false
+}
+
+const handleSwitchCanvas = async (slug: string) => {
+  const success = await canvasManager.switchCanvas(slug)
+  if (!success) {
+    alert('Failed to switch to canvas')
+  }
+  showCanvasListModal.value = false
+}
+
+const handleDeleteCanvas = async (canvasId: number) => {
+  if (confirm('Are you sure you want to delete this canvas? This action cannot be undone.')) {
+    const success = await canvasManager.deleteCanvas(canvasId)
+    if (!success) {
+      alert('Failed to delete canvas')
+    }
+  }
+}
+
 const handleKeydown = (event: KeyboardEvent) => {
-  if (event.code === 'Space' && !showTextInput.value) {
+  // Don't handle shortcuts if user is typing in an input
+  const isTyping = event.target instanceof HTMLInputElement ||
+                   event.target instanceof HTMLTextAreaElement ||
+                   (event.target as Element)?.isContentEditable
+
+  if (event.code === 'Space' && !showTextInput.value && !isTyping) {
     event.preventDefault()
     currentTool.value = 'pan'
-  } else if (event.key === 't' && !showTextInput.value) {
+  } else if (event.key === 't' && !showTextInput.value && !isTyping) {
     event.preventDefault()
     currentTool.value = 'text'
   }
 }
 
-const loadTextElements = async () => {
-  try {
-    textElements.value = await db.textElements.orderBy('timestamp').toArray()
-  } catch (error) {
-    console.error('Failed to load text elements:', error)
-  }
-}
-
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener('keydown', handleKeydown)
-  loadTextElements()
+
+  const hasCanvas = await canvasManager.initializeFromUrl()
+  if (!hasCanvas) {
+    // No canvases exist, show the new canvas modal
+    showNewCanvasModal.value = true
+  }
 })
 
 onUnmounted(() => {
@@ -77,9 +105,33 @@ onUnmounted(() => {
 
 <template>
   <div class="h-screen w-screen overflow-hidden bg-base-200" data-theme="light">
+    <!-- Canvas Management Header -->
+    <div class="fixed top-4 left-4 z-50">
+      <div class="flex items-center gap-3 bg-base-100 p-2 rounded-lg shadow-lg">
+        <button
+          class="btn btn-sm btn-primary"
+          @click="showNewCanvasModal = true"
+          title="New Canvas"
+        >
+          <Plus class="w-4 h-4" />
+        </button>
+        <button
+          class="btn btn-sm btn-ghost"
+          @click="showCanvasListModal = true"
+          title="Canvas List"
+        >
+          <List class="w-4 h-4" />
+        </button>
+        <div v-if="canvasManager.currentCanvas.value" class="divider divider-horizontal mx-0"></div>
+        <span v-if="canvasManager.currentCanvas.value" class="text-sm font-mono">
+          {{ canvasManager.currentCanvas.value.slug }}
+        </span>
+      </div>
+    </div>
+
     <InfinitePannableCanvas
       :is-pan-mode="currentTool === 'pan'"
-      :text-elements="textElements"
+      :text-elements="canvasManager.textElements.value"
       @add-text="handleAddText"
     />
 
@@ -93,6 +145,22 @@ onUnmounted(() => {
       :position="textInputPosition"
       @confirm="handleTextConfirm"
       @cancel="handleTextCancel"
+    />
+
+    <!-- Modals -->
+    <NewCanvasModal
+      :is-visible="showNewCanvasModal"
+      @close="showNewCanvasModal = false"
+      @create="handleCreateCanvas"
+    />
+
+    <CanvasListModal
+      :is-visible="showCanvasListModal"
+      :canvases="canvasManager.canvases.value"
+      :current-canvas="canvasManager.currentCanvas.value"
+      @close="showCanvasListModal = false"
+      @switch="handleSwitchCanvas"
+      @delete="handleDeleteCanvas"
     />
   </div>
 </template>
