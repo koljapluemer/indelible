@@ -32,6 +32,16 @@
           stroke-linecap="round"
         />
       </g>
+      <polyline
+        v-else-if="elementType === 'drawing' && drawingPath && drawingPath.length > 1"
+        :points="drawingPath.map(p => `${p.x},${p.y}`).join(' ')"
+        stroke="currentColor"
+        stroke-width="2"
+        fill="none"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="text-base-content"
+      />
     </svg>
   </div>
 </template>
@@ -46,6 +56,7 @@ interface DrawingPreviewProps {
   startY: number
   endX: number
   endY: number
+  drawingPath?: { x: number; y: number }[]
 }
 
 defineProps<DrawingPreviewProps>()

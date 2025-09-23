@@ -100,6 +100,26 @@
             stroke-linecap="round"
           />
         </svg>
+        <svg
+          v-else-if="element.type === 'drawing'"
+          class="absolute pointer-events-none"
+          :style="{
+            width: '10000px',
+            height: '10000px',
+            left: -element.x + 'px',
+            top: -element.y + 'px'
+          }"
+        >
+          <polyline
+            :points="JSON.parse(element.data).map((p: any) => `${p.x},${p.y}`).join(' ')"
+            stroke="currentColor"
+            stroke-width="2"
+            fill="none"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="text-base-content"
+          />
+        </svg>
       </div>
     </div>
   </div>
@@ -120,6 +140,9 @@ interface CanvasEmits {
   addImage: [canvasX: number, canvasY: number]
   startLine: [canvasX: number, canvasY: number]
   finishLine: [canvasX: number, canvasY: number]
+  startDraw: [canvasX: number, canvasY: number]
+  addDrawPoint: [canvasX: number, canvasY: number]
+  finishDraw: []
   transformChange: [transform: { x: number, y: number, scale: number }]
 }
 
@@ -139,6 +162,24 @@ const canvasStyle = computed(() => ({
 }))
 
 const startPanning = (event: MouseEvent) => {
+  // Check if we should start drawing instead
+  const app = document.documentElement
+  const isDrawTool = app.querySelector('[data-draw-tool-active="true"]')
+
+  if (isDrawTool) {
+    // Start drawing
+    const rect = canvasContainer.value?.getBoundingClientRect()
+    if (rect) {
+      const screenX = event.clientX - rect.left
+      const screenY = event.clientY - rect.top
+      const canvasX = (screenX - transform.value.x) / transform.value.scale
+      const canvasY = (screenY - transform.value.y) / transform.value.scale
+      emit('startDraw', canvasX, canvasY)
+    }
+    event.preventDefault()
+    return
+  }
+
   if (!props.isPanMode) return
 
   isPanning.value = true
@@ -147,6 +188,24 @@ const startPanning = (event: MouseEvent) => {
 }
 
 const handlePanning = (event: MouseEvent) => {
+  // Check if we're in free drawing mode
+  const app = document.documentElement
+  const isFreeDrawing = app.querySelector('[data-free-drawing-active="true"]')
+
+  if (isFreeDrawing) {
+    // Add point to drawing
+    const rect = canvasContainer.value?.getBoundingClientRect()
+    if (rect) {
+      const screenX = event.clientX - rect.left
+      const screenY = event.clientY - rect.top
+      const canvasX = (screenX - transform.value.x) / transform.value.scale
+      const canvasY = (screenY - transform.value.y) / transform.value.scale
+      emit('addDrawPoint', canvasX, canvasY)
+    }
+    event.preventDefault()
+    return
+  }
+
   if (!isPanning.value || !props.isPanMode) return
 
   const deltaX = event.clientX - lastPanPoint.value.x
@@ -162,6 +221,15 @@ const handlePanning = (event: MouseEvent) => {
 }
 
 const stopPanning = () => {
+  // Check if we're finishing a drawing
+  const app = document.documentElement
+  const isFreeDrawing = app.querySelector('[data-free-drawing-active="true"]')
+
+  if (isFreeDrawing) {
+    emit('finishDraw')
+    return
+  }
+
   isPanning.value = false
 }
 
@@ -219,9 +287,12 @@ const handleCanvasClick = (event: MouseEvent) => {
     const isTextTool = app.querySelector('[data-text-tool-active="true"]')
     const isLineTool = app.querySelector('[data-line-tool-active="true"]')
     const isTapeTool = app.querySelector('[data-tape-tool-active="true"]')
+    const isDrawTool = app.querySelector('[data-draw-tool-active="true"]')
 
     if (isLineTool || isTapeTool) {
       emit('startLine', canvasX, canvasY)
+    } else if (isDrawTool) {
+      emit('startDraw', canvasX, canvasY)
     } else if (isTextTool) {
       emit('addText', canvasX, canvasY, screenX, screenY)
     }

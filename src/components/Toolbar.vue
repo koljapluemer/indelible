@@ -63,20 +63,33 @@
       >
         <RectangleHorizontal class="w-5 h-5" />
       </button>
+
+      <!-- Draw Tool -->
+      <button
+        class="btn btn-circle"
+        :class="[
+          currentTool === 'draw' ? 'btn-primary' :
+          canvasState === 'free-drawing' ? 'btn-secondary' : 'btn-ghost'
+        ]"
+        @click="$emit('toolChanged', 'draw')"
+        title="Draw Tool (D)"
+      >
+        <Pen class="w-5 h-5" />
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Move, Type, Image, Minus, RectangleHorizontal } from 'lucide-vue-next'
+import { Move, Type, Image, Minus, RectangleHorizontal, Pen } from 'lucide-vue-next'
 
 interface ToolbarProps {
-  currentTool: 'pan' | 'text' | 'image' | 'line' | 'tape'
-  canvasState: 'idle' | 'text-input' | 'image-workflow' | 'drawing'
+  currentTool: 'pan' | 'text' | 'image' | 'line' | 'tape' | 'draw'
+  canvasState: 'idle' | 'text-input' | 'image-workflow' | 'drawing' | 'free-drawing'
 }
 
 interface ToolbarEmits {
-  toolChanged: [tool: 'pan' | 'text' | 'image' | 'line' | 'tape']
+  toolChanged: [tool: 'pan' | 'text' | 'image' | 'line' | 'tape' | 'draw']
 }
 
 defineProps<ToolbarProps>()

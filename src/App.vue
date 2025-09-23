@@ -25,7 +25,7 @@ const canvasManager = useCanvasManager()
 const canvasState = useCanvasState()
 const canvasTransform = ref({ x: 0, y: 0, scale: 1 })
 
-const handleToolChange = async (tool: 'pan' | 'text' | 'image' | 'line' | 'tape') => {
+const handleToolChange = async (tool: 'pan' | 'text' | 'image' | 'line' | 'tape' | 'draw') => {
   canvasState.setTool(tool)
   showTextInput.value = false
 
@@ -207,6 +207,31 @@ const handleFinishDrawing = async (canvasX: number, canvasY: number) => {
   }
 }
 
+const handleStartFreeDrawing = (canvasX: number, canvasY: number) => {
+  if (canvasState.currentTool.value === 'draw' && canvasState.canvasState.value === 'idle') {
+    canvasState.startFreeDrawing(canvasX, canvasY)
+  }
+}
+
+const handleAddDrawPoint = (canvasX: number, canvasY: number) => {
+  if (canvasState.isFreeDrawingActive.value) {
+    canvasState.addPointToDrawing(canvasX, canvasY)
+  }
+}
+
+const handleFinishFreeDrawing = async () => {
+  if (canvasState.isFreeDrawingActive.value) {
+    const path = canvasState.freeDrawingWorkflow.value.currentPath
+    if (path.length > 1) { // Only save if there are multiple points
+      const success = await canvasManager.addFreeDrawingElement(path)
+      if (!success) {
+        console.error('Failed to add drawing element')
+      }
+    }
+    canvasState.finishFreeDrawing()
+  }
+}
+
 const handleKeydown = (event: KeyboardEvent) => {
   // Don't handle shortcuts if user is typing in an input
   const isTyping = event.target instanceof HTMLInputElement ||
@@ -222,6 +247,12 @@ const handleKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Escape' && canvasState.isDrawingActive.value) {
     event.preventDefault()
     canvasState.cancelElementDrawing()
+    return
+  }
+
+  if (event.key === 'Escape' && canvasState.isFreeDrawingActive.value) {
+    event.preventDefault()
+    canvasState.cancelFreeDrawing()
     return
   }
 
@@ -242,6 +273,9 @@ const handleKeydown = (event: KeyboardEvent) => {
   } else if (event.key === 'a') {
     event.preventDefault()
     handleToolChange('tape')
+  } else if (event.key === 'd') {
+    event.preventDefault()
+    handleToolChange('draw')
   }
 }
 
@@ -291,6 +325,8 @@ onUnmounted(() => {
     :data-text-tool-active="canvasState.currentTool.value === 'text' && canvasState.canvasState.value === 'idle'"
     :data-line-tool-active="canvasState.currentTool.value === 'line' && canvasState.canvasState.value === 'idle'"
     :data-tape-tool-active="canvasState.currentTool.value === 'tape' && canvasState.canvasState.value === 'idle'"
+    :data-draw-tool-active="canvasState.currentTool.value === 'draw' && canvasState.canvasState.value === 'idle'"
+    :data-free-drawing-active="canvasState.isFreeDrawingActive.value"
   >
     <!-- Canvas Management Header -->
     <div class="fixed top-4 left-4 z-50">
@@ -323,6 +359,9 @@ onUnmounted(() => {
       @add-image="handleImageClick"
       @start-line="handleStartDrawing"
       @finish-line="handleFinishDrawing"
+      @start-draw="handleStartFreeDrawing"
+      @add-draw-point="handleAddDrawPoint"
+      @finish-draw="handleFinishFreeDrawing"
       @transform-change="handleCanvasTransformChange"
     />
 
@@ -364,6 +403,19 @@ onUnmounted(() => {
       :start-y="canvasState.drawingWorkflow.value.startY * canvasTransform.scale + canvasTransform.y"
       :end-x="canvasState.drawingWorkflow.value.endX * canvasTransform.scale + canvasTransform.x"
       :end-y="canvasState.drawingWorkflow.value.endY * canvasTransform.scale + canvasTransform.y"
+    />
+
+    <DrawingPreview
+      :is-active="canvasState.isFreeDrawingActive.value"
+      element-type="drawing"
+      :start-x="0"
+      :start-y="0"
+      :end-x="0"
+      :end-y="0"
+      :drawing-path="canvasState.freeDrawingWorkflow.value.currentPath.map(p => ({
+        x: p.x * canvasTransform.scale + canvasTransform.x,
+        y: p.y * canvasTransform.scale + canvasTransform.y
+      }))"
     />
 
     <ImageSizeModal

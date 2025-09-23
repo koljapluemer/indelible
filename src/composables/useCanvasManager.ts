@@ -173,7 +173,7 @@ export function useCanvasManager() {
     }
   }
 
-  const addDrawingElement = async (type: 'line' | 'tape', startX: number, startY: number, endX: number, endY: number): Promise<boolean> => {
+  const addDrawingElement = async (type: 'line' | 'tape' | 'drawing', startX: number, startY: number, endX: number, endY: number): Promise<boolean> => {
     if (!currentCanvas.value?.id) return false
 
     try {
@@ -207,6 +207,38 @@ export function useCanvasManager() {
   // Backward compatibility
   const addLineElement = async (startX: number, startY: number, endX: number, endY: number): Promise<boolean> => {
     return addDrawingElement('line', startX, startY, endX, endY)
+  }
+
+  const addFreeDrawingElement = async (path: { x: number; y: number }[]): Promise<boolean> => {
+    if (!currentCanvas.value?.id || path.length < 2) return false
+
+    const [firstPoint] = path
+    if (!firstPoint) return false
+
+    try {
+      const element: CanvasElement = {
+        canvasId: currentCanvas.value.id,
+        type: 'drawing',
+        x: firstPoint.x,
+        y: firstPoint.y,
+        data: JSON.stringify(path),
+        scale: 1,
+        timestamp: Date.now()
+      }
+
+      const id = await db.canvasElements.add(element)
+      element.id = id
+      elements.value.push(element)
+
+      // Update canvas timestamp
+      await db.canvases.update(currentCanvas.value.id, { updatedAt: Date.now() })
+      currentCanvas.value.updatedAt = Date.now()
+
+      return true
+    } catch (error) {
+      console.error('Failed to add drawing element:', error)
+      return false
+    }
   }
 
   const initializeFromUrl = async (): Promise<boolean> => {
@@ -243,6 +275,7 @@ export function useCanvasManager() {
     addImageElement,
     addDrawingElement,
     addLineElement,
+    addFreeDrawingElement,
     initializeFromUrl
   }
 }

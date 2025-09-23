@@ -2,8 +2,8 @@ import { ref, computed } from 'vue'
 import { createDrawingWorkflow, startDrawing, updateDrawingEnd, finishDrawing, cancelDrawing, type DrawingWorkflow, type DrawingElement } from '../utils/drawingUtils'
 
 // Main canvas state machine
-type CanvasTool = 'pan' | 'text' | 'image' | 'line' | 'tape'
-type CanvasState = 'idle' | 'text-input' | 'image-workflow' | 'drawing'
+type CanvasTool = 'pan' | 'text' | 'image' | 'line' | 'tape' | 'draw'
+type CanvasState = 'idle' | 'text-input' | 'image-workflow' | 'drawing' | 'free-drawing'
 
 // Image workflow - two step process
 type ImageState = 'size-selection' | 'positioning'
@@ -24,6 +24,11 @@ interface ImageWorkflow {
 
 // Use the drawing workflow from utils
 
+interface FreeDrawingWorkflow {
+  isActive: boolean
+  currentPath: { x: number; y: number }[]
+}
+
 const currentTool = ref<CanvasTool>('pan')
 const canvasState = ref<CanvasState>('idle')
 const imageWorkflow = ref<ImageWorkflow>({
@@ -41,6 +46,11 @@ const imageWorkflow = ref<ImageWorkflow>({
 
 const drawingWorkflow = ref<DrawingWorkflow>(createDrawingWorkflow('line'))
 
+const freeDrawingWorkflow = ref<FreeDrawingWorkflow>({
+  isActive: false,
+  currentPath: []
+})
+
 export function useCanvasState() {
   const setTool = (tool: CanvasTool) => {
     // Reset any active workflows when switching tools
@@ -50,7 +60,11 @@ export function useCanvasState() {
     if (tool !== 'line' && tool !== 'tape') {
       drawingWorkflow.value = cancelDrawing(drawingWorkflow.value)
     }
-    if (tool !== 'image' && tool !== 'line' && tool !== 'tape') {
+    if (tool !== 'draw') {
+      freeDrawingWorkflow.value.isActive = false
+      freeDrawingWorkflow.value.currentPath = []
+    }
+    if (tool !== 'image' && tool !== 'line' && tool !== 'tape' && tool !== 'draw') {
       canvasState.value = 'idle'
     }
     currentTool.value = tool
@@ -137,12 +151,42 @@ export function useCanvasState() {
     canvasState.value = 'idle'
   }
 
+  const startFreeDrawing = (startX: number, startY: number) => {
+    canvasState.value = 'free-drawing'
+    freeDrawingWorkflow.value = {
+      isActive: true,
+      currentPath: [{ x: startX, y: startY }]
+    }
+  }
+
+  const addPointToDrawing = (x: number, y: number) => {
+    if (freeDrawingWorkflow.value.isActive) {
+      const lastPoint = freeDrawingWorkflow.value.currentPath[freeDrawingWorkflow.value.currentPath.length - 1]
+      // Only add point if it's far enough from the last point (optimization)
+      if (!lastPoint || Math.abs(x - lastPoint.x) > 2 || Math.abs(y - lastPoint.y) > 2) {
+        freeDrawingWorkflow.value.currentPath.push({ x, y })
+      }
+    }
+  }
+
+  const finishFreeDrawing = () => {
+    freeDrawingWorkflow.value.isActive = false
+    canvasState.value = 'idle'
+  }
+
+  const cancelFreeDrawing = () => {
+    freeDrawingWorkflow.value.isActive = false
+    freeDrawingWorkflow.value.currentPath = []
+    canvasState.value = 'idle'
+  }
+
   return {
     // State
     currentTool: computed(() => currentTool.value),
     canvasState: computed(() => canvasState.value),
     imageWorkflow: computed(() => imageWorkflow.value),
     drawingWorkflow: computed(() => drawingWorkflow.value),
+    freeDrawingWorkflow: computed(() => freeDrawingWorkflow.value),
 
     // Main state machine
     setTool,
@@ -162,11 +206,18 @@ export function useCanvasState() {
     finishElementDrawing,
     cancelElementDrawing,
 
+    // Free drawing workflow sub-state machine
+    startFreeDrawing,
+    addPointToDrawing,
+    finishFreeDrawing,
+    cancelFreeDrawing,
+
     // Computed state checks
     isImageWorkflowActive: computed(() => imageWorkflow.value.isActive),
     isInSizeSelection: computed(() => imageWorkflow.value.isActive && imageWorkflow.value.state === 'size-selection'),
     isInPositioning: computed(() => imageWorkflow.value.isActive && imageWorkflow.value.state === 'positioning'),
     isDrawingActive: computed(() => drawingWorkflow.value.isActive),
+    isFreeDrawingActive: computed(() => freeDrawingWorkflow.value.isActive),
     canHandleCanvasClick: computed(() =>
       canvasState.value === 'idle' ||
       canvasState.value === 'image-workflow' ||

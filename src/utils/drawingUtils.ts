@@ -1,6 +1,6 @@
 // Drawing utilities for line-based elements (line, tape)
 
-export type DrawingElement = 'line' | 'tape'
+export type DrawingElement = 'line' | 'tape' | 'drawing'
 
 export interface DrawingWorkflow {
   isActive: boolean
