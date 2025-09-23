@@ -35,13 +35,13 @@
       <div
         v-for="textElement in textElements"
         :key="textElement.id"
-        class="absolute text-base-content pointer-events-none select-none"
+        class="absolute pointer-events-none select-none"
         :style="{
           left: textElement.x + 'px',
           top: textElement.y + 'px',
         }"
       >
-        {{ textElement.content }}
+        <MarkdownText :content="textElement.content" />
       </div>
     </div>
   </div>
@@ -49,6 +49,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import MarkdownText from './MarkdownText.vue'
 
 export interface TextElement {
   id: string
