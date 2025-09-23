@@ -173,6 +173,37 @@ export function useCanvasManager() {
     }
   }
 
+  const addLineElement = async (startX: number, startY: number, endX: number, endY: number): Promise<boolean> => {
+    if (!currentCanvas.value?.id) return false
+
+    try {
+      const element: CanvasElement = {
+        canvasId: currentCanvas.value.id,
+        type: 'line',
+        x: startX,
+        y: startY,
+        endX,
+        endY,
+        data: '', // Lines don't need data
+        scale: 1,
+        timestamp: Date.now()
+      }
+
+      const id = await db.canvasElements.add(element)
+      element.id = id
+      elements.value.push(element)
+
+      // Update canvas timestamp
+      await db.canvases.update(currentCanvas.value.id, { updatedAt: Date.now() })
+      currentCanvas.value.updatedAt = Date.now()
+
+      return true
+    } catch (error) {
+      console.error('Failed to add line element:', error)
+      return false
+    }
+  }
+
   const initializeFromUrl = async (): Promise<boolean> => {
     await loadCanvases()
 
@@ -205,6 +236,7 @@ export function useCanvasManager() {
     deleteCanvas,
     addTextElement,
     addImageElement,
+    addLineElement,
     initializeFromUrl
   }
 }

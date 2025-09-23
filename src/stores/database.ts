@@ -10,13 +10,15 @@ export interface Canvas {
 export interface CanvasElement {
   id?: number
   canvasId: number
-  type: 'text' | 'image'
+  type: 'text' | 'image' | 'line'
   x: number
   y: number
   data: string
   scale: number
   width?: number  // Only used for images
   height?: number // Only used for images
+  endX?: number   // Only used for lines
+  endY?: number   // Only used for lines
   timestamp: number
 }
 
@@ -25,9 +27,9 @@ const db = new Dexie('IndelibleDB') as Dexie & {
   canvasElements: EntityTable<CanvasElement, 'id'>
 }
 
-db.version(2).stores({
+db.version(3).stores({
   canvases: '++id, slug, createdAt, updatedAt',
-  canvasElements: '++id, canvasId, type, x, y, data, scale, width, height, timestamp'
+  canvasElements: '++id, canvasId, type, x, y, data, scale, width, height, endX, endY, timestamp'
 })
 
 export { db }

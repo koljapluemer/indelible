@@ -1,8 +1,8 @@
 import { ref, computed } from 'vue'
 
 // Main canvas state machine
-type CanvasTool = 'pan' | 'text' | 'image'
-type CanvasState = 'idle' | 'text-input' | 'image-workflow'
+type CanvasTool = 'pan' | 'text' | 'image' | 'line'
+type CanvasState = 'idle' | 'text-input' | 'image-workflow' | 'line-drawing'
 
 // Image workflow - two step process
 type ImageState = 'size-selection' | 'positioning'
@@ -21,6 +21,14 @@ interface ImageWorkflow {
   y: number
 }
 
+interface LineWorkflow {
+  isActive: boolean
+  startX: number
+  startY: number
+  endX: number
+  endY: number
+}
+
 const currentTool = ref<CanvasTool>('pan')
 const canvasState = ref<CanvasState>('idle')
 const imageWorkflow = ref<ImageWorkflow>({
@@ -36,11 +44,24 @@ const imageWorkflow = ref<ImageWorkflow>({
   y: window.innerHeight / 2
 })
 
+const lineWorkflow = ref<LineWorkflow>({
+  isActive: false,
+  startX: 0,
+  startY: 0,
+  endX: 0,
+  endY: 0
+})
+
 export function useCanvasState() {
   const setTool = (tool: CanvasTool) => {
     // Reset any active workflows when switching tools
     if (tool !== 'image') {
       imageWorkflow.value.isActive = false
+    }
+    if (tool !== 'line') {
+      lineWorkflow.value.isActive = false
+    }
+    if (tool !== 'image' && tool !== 'line') {
       canvasState.value = 'idle'
     }
     currentTool.value = tool
@@ -106,11 +127,40 @@ export function useCanvasState() {
     canvasState.value = 'idle'
   }
 
+  const startLineDrawing = (startX: number, startY: number) => {
+    canvasState.value = 'line-drawing'
+    lineWorkflow.value = {
+      isActive: true,
+      startX,
+      startY,
+      endX: startX,
+      endY: startY
+    }
+  }
+
+  const updateLineEnd = (endX: number, endY: number) => {
+    if (lineWorkflow.value.isActive) {
+      lineWorkflow.value.endX = endX
+      lineWorkflow.value.endY = endY
+    }
+  }
+
+  const finishLineDrawing = () => {
+    lineWorkflow.value.isActive = false
+    canvasState.value = 'idle'
+  }
+
+  const cancelLineDrawing = () => {
+    lineWorkflow.value.isActive = false
+    canvasState.value = 'idle'
+  }
+
   return {
     // State
     currentTool: computed(() => currentTool.value),
     canvasState: computed(() => canvasState.value),
     imageWorkflow: computed(() => imageWorkflow.value),
+    lineWorkflow: computed(() => lineWorkflow.value),
 
     // Main state machine
     setTool,
@@ -124,13 +174,21 @@ export function useCanvasState() {
     cancelImageWorkflow,
     finishImageWorkflow,
 
+    // Line workflow sub-state machine
+    startLineDrawing,
+    updateLineEnd,
+    finishLineDrawing,
+    cancelLineDrawing,
+
     // Computed state checks
     isImageWorkflowActive: computed(() => imageWorkflow.value.isActive),
     isInSizeSelection: computed(() => imageWorkflow.value.isActive && imageWorkflow.value.state === 'size-selection'),
     isInPositioning: computed(() => imageWorkflow.value.isActive && imageWorkflow.value.state === 'positioning'),
+    isLineDrawingActive: computed(() => lineWorkflow.value.isActive),
     canHandleCanvasClick: computed(() =>
       canvasState.value === 'idle' ||
-      canvasState.value === 'image-workflow'
+      canvasState.value === 'image-workflow' ||
+      canvasState.value === 'line-drawing'
     )
   }
 }

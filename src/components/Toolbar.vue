@@ -37,20 +37,33 @@
       >
         <Image class="w-5 h-5" />
       </button>
+
+      <!-- Line Tool -->
+      <button
+        class="btn btn-circle"
+        :class="[
+          currentTool === 'line' ? 'btn-primary' :
+          canvasState === 'line-drawing' ? 'btn-secondary' : 'btn-ghost'
+        ]"
+        @click="$emit('toolChanged', 'line')"
+        title="Line Tool (L)"
+      >
+        <Minus class="w-5 h-5" />
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Move, Type, Image } from 'lucide-vue-next'
+import { Move, Type, Image, Minus } from 'lucide-vue-next'
 
 interface ToolbarProps {
-  currentTool: 'pan' | 'text' | 'image'
-  canvasState: 'idle' | 'text-input' | 'image-workflow'
+  currentTool: 'pan' | 'text' | 'image' | 'line'
+  canvasState: 'idle' | 'text-input' | 'image-workflow' | 'line-drawing'
 }
 
 interface ToolbarEmits {
-  toolChanged: [tool: 'pan' | 'text' | 'image']
+  toolChanged: [tool: 'pan' | 'text' | 'image' | 'line']
 }
 
 defineProps<ToolbarProps>()

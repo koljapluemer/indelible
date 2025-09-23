@@ -1,6 +1,7 @@
 <template>
   <div
     ref="canvasContainer"
+    data-canvas="true"
     class="relative w-full h-full overflow-hidden bg-base-200"
     :class="[
       isPanMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'
@@ -53,6 +54,26 @@
           :height="element.height"
           class="block"
         />
+        <svg
+          v-else-if="element.type === 'line'"
+          class="absolute pointer-events-none"
+          :style="{
+            width: Math.abs((element.endX || element.x) - element.x) + 4 + 'px',
+            height: Math.abs((element.endY || element.y) - element.y) + 4 + 'px',
+            left: (Math.min(element.x, element.endX || element.x) - element.x - 2) + 'px',
+            top: (Math.min(element.y, element.endY || element.y) - element.y - 2) + 'px'
+          }"
+        >
+          <line
+            :x1="element.x <= (element.endX || element.x) ? 2 : Math.abs((element.endX || element.x) - element.x) + 2"
+            :y1="element.y <= (element.endY || element.y) ? 2 : Math.abs((element.endY || element.y) - element.y) + 2"
+            :x2="element.x <= (element.endX || element.x) ? Math.abs((element.endX || element.x) - element.x) + 2 : 2"
+            :y2="element.y <= (element.endY || element.y) ? Math.abs((element.endY || element.y) - element.y) + 2 : 2"
+            stroke="currentColor"
+            stroke-width="2"
+            class="text-base-content"
+          />
+        </svg>
       </div>
     </div>
   </div>
@@ -71,6 +92,8 @@ interface CanvasProps {
 interface CanvasEmits {
   addText: [canvasX: number, canvasY: number, screenX: number, screenY: number]
   addImage: [canvasX: number, canvasY: number]
+  startLine: [canvasX: number, canvasY: number]
+  finishLine: [canvasX: number, canvasY: number]
   transformChange: [transform: { x: number, y: number, scale: number }]
 }
 
@@ -156,12 +179,26 @@ const handleCanvasClick = (event: MouseEvent) => {
   const canvasX = (screenX - transform.value.x) / transform.value.scale
   const canvasY = (screenY - transform.value.y) / transform.value.scale
 
-  // Check if we're in image preview mode by checking parent component state
-  const app = document.querySelector('[data-image-preview-active="true"]')
-  if (app) {
+  // Check states by looking at parent component data attributes
+  const app = document.documentElement
+  const isImagePreview = app.querySelector('[data-image-preview-active="true"]')
+  const isLineDrawing = app.querySelector('[data-line-drawing-active="true"]')
+
+  if (isImagePreview) {
     emit('addImage', canvasX, canvasY)
+  } else if (isLineDrawing) {
+    emit('finishLine', canvasX, canvasY)
   } else {
-    emit('addText', canvasX, canvasY, screenX, screenY)
+    // Determine action based on current tool state from parent
+    // We'll need to check the current tool from parent component
+    const isTextTool = app.querySelector('[data-text-tool-active="true"]')
+    const isLineTool = app.querySelector('[data-line-tool-active="true"]')
+
+    if (isLineTool) {
+      emit('startLine', canvasX, canvasY)
+    } else if (isTextTool) {
+      emit('addText', canvasX, canvasY, screenX, screenY)
+    }
   }
 }
 </script>

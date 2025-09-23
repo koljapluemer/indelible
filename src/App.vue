@@ -8,6 +8,7 @@ import NewCanvasModal from './components/NewCanvasModal.vue'
 import CanvasListModal from './components/CanvasListModal.vue'
 import ImagePreview from './components/ImagePreview.vue'
 import ImageSizeModal from './components/ImageSizeModal.vue'
+import LinePreview from './components/LinePreview.vue'
 import { useCanvasManager } from './composables/useCanvasManager'
 import { useCanvasState } from './composables/useCanvasState'
 import { processImageFile, extractImageFromClipboard } from './utils/imageProcessor'
@@ -24,7 +25,7 @@ const canvasManager = useCanvasManager()
 const canvasState = useCanvasState()
 const canvasTransform = ref({ x: 0, y: 0, scale: 1 })
 
-const handleToolChange = async (tool: 'pan' | 'text' | 'image') => {
+const handleToolChange = async (tool: 'pan' | 'text' | 'image' | 'line') => {
   canvasState.setTool(tool)
   showTextInput.value = false
 
@@ -136,6 +137,16 @@ const handleMouseMove = (event: MouseEvent) => {
   if (canvasState.isInPositioning.value) {
     // Update image preview position to follow cursor
     canvasState.updateImagePosition(event.clientX, event.clientY)
+  } else if (canvasState.isLineDrawingActive.value) {
+    // Update line preview end position
+    const rect = document.querySelector('[data-canvas="true"]')?.getBoundingClientRect()
+    if (rect) {
+      const screenX = event.clientX - rect.left
+      const screenY = event.clientY - rect.top
+      const canvasX = (screenX - canvasTransform.value.x) / canvasTransform.value.scale
+      const canvasY = (screenY - canvasTransform.value.y) / canvasTransform.value.scale
+      canvasState.updateLineEnd(canvasX, canvasY)
+    }
   }
 }
 
@@ -170,6 +181,30 @@ const handleImageSizeCancel = () => {
   canvasState.cancelImageWorkflow()
 }
 
+const handleStartLine = (canvasX: number, canvasY: number) => {
+  if (canvasState.currentTool.value === 'line' && canvasState.canvasState.value === 'idle') {
+    canvasState.startLineDrawing(canvasX, canvasY)
+  }
+}
+
+const handleFinishLine = async (canvasX: number, canvasY: number) => {
+  if (canvasState.isLineDrawingActive.value) {
+    const line = canvasState.lineWorkflow.value
+    const success = await canvasManager.addLineElement(
+      line.startX,
+      line.startY,
+      canvasX,
+      canvasY
+    )
+
+    if (!success) {
+      console.error('Failed to add line element')
+    }
+
+    canvasState.finishLineDrawing()
+  }
+}
+
 const handleKeydown = (event: KeyboardEvent) => {
   // Don't handle shortcuts if user is typing in an input
   const isTyping = event.target instanceof HTMLInputElement ||
@@ -179,6 +214,12 @@ const handleKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Escape' && canvasState.isImageWorkflowActive.value) {
     event.preventDefault()
     canvasState.cancelImageWorkflow()
+    return
+  }
+
+  if (event.key === 'Escape' && canvasState.isLineDrawingActive.value) {
+    event.preventDefault()
+    canvasState.cancelLineDrawing()
     return
   }
 
@@ -193,6 +234,9 @@ const handleKeydown = (event: KeyboardEvent) => {
   } else if (event.key === 'i') {
     event.preventDefault()
     handleToolChange('image')
+  } else if (event.key === 'l') {
+    event.preventDefault()
+    handleToolChange('line')
   }
 }
 
@@ -234,7 +278,14 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="h-screen w-screen overflow-hidden bg-base-200" data-theme="light" :data-image-preview-active="canvasState.isImageWorkflowActive.value">
+  <div
+    class="h-screen w-screen overflow-hidden bg-base-200"
+    data-theme="light"
+    :data-image-preview-active="canvasState.isImageWorkflowActive.value"
+    :data-line-drawing-active="canvasState.isLineDrawingActive.value"
+    :data-text-tool-active="canvasState.currentTool.value === 'text' && canvasState.canvasState.value === 'idle'"
+    :data-line-tool-active="canvasState.currentTool.value === 'line' && canvasState.canvasState.value === 'idle'"
+  >
     <!-- Canvas Management Header -->
     <div class="fixed top-4 left-4 z-50">
       <div class="flex items-center gap-3 bg-base-100 p-2 rounded-lg shadow-lg">
@@ -264,6 +315,8 @@ onUnmounted(() => {
       :elements="canvasManager.elements.value"
       @add-text="handleAddText"
       @add-image="handleImageClick"
+      @start-line="handleStartLine"
+      @finish-line="handleFinishLine"
       @transform-change="handleCanvasTransformChange"
     />
 
@@ -297,6 +350,14 @@ onUnmounted(() => {
     />
 
     <ImagePreview :preview="canvasState.imageWorkflow.value" />
+
+    <LinePreview
+      :is-active="canvasState.isLineDrawingActive.value"
+      :start-x="canvasState.lineWorkflow.value.startX * canvasTransform.scale + canvasTransform.x"
+      :start-y="canvasState.lineWorkflow.value.startY * canvasTransform.scale + canvasTransform.y"
+      :end-x="canvasState.lineWorkflow.value.endX * canvasTransform.scale + canvasTransform.x"
+      :end-y="canvasState.lineWorkflow.value.endY * canvasTransform.scale + canvasTransform.y"
+    />
 
     <ImageSizeModal
       v-if="canvasState.isInSizeSelection.value"
