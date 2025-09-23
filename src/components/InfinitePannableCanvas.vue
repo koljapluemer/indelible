@@ -42,7 +42,7 @@
           transform: `scale(${element.scale})`
         }"
       >
-        <MarkdownText v-if="element.type === 'text'" :content="element.data" />
+        <HtmlText v-if="element.type === 'text'" :content="element.data" />
         <img
           v-else-if="element.type === 'image'"
           :src="element.data"
@@ -57,7 +57,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import MarkdownText from './MarkdownText.vue'
+import HtmlText from './HtmlText.vue'
 import type { CanvasElement } from '../stores/database'
 
 interface CanvasProps {
