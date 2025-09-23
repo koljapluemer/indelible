@@ -16,10 +16,10 @@ const handleToolChange = (tool: 'pan' | 'text') => {
   showTextInput.value = false
 }
 
-const handleAddText = (x: number, y: number) => {
+const handleAddText = (canvasX: number, canvasY: number, screenX: number, screenY: number) => {
   if (currentTool.value === 'text') {
-    pendingTextPosition.value = { x, y }
-    textInputPosition.value = { x: x + 20, y: y + 20 }
+    pendingTextPosition.value = { x: canvasX, y: canvasY }
+    textInputPosition.value = { x: screenX, y: screenY }
     showTextInput.value = true
   }
 }

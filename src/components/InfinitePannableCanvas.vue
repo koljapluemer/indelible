@@ -65,7 +65,7 @@ interface CanvasProps {
 }
 
 interface CanvasEmits {
-  addText: [x: number, y: number]
+  addText: [canvasX: number, canvasY: number, screenX: number, screenY: number]
 }
 
 const props = defineProps<CanvasProps>()
@@ -139,13 +139,13 @@ const handleCanvasClick = (event: MouseEvent) => {
   const rect = canvasContainer.value?.getBoundingClientRect()
   if (!rect) return
 
-  const clickX = event.clientX - rect.left
-  const clickY = event.clientY - rect.top
+  const screenX = event.clientX - rect.left
+  const screenY = event.clientY - rect.top
 
   // Convert screen coordinates to canvas coordinates
-  const canvasX = (clickX - transform.value.x) / transform.value.scale
-  const canvasY = (clickY - transform.value.y) / transform.value.scale
+  const canvasX = (screenX - transform.value.x) / transform.value.scale
+  const canvasY = (screenY - transform.value.y) / transform.value.scale
 
-  emit('addText', canvasX, canvasY)
+  emit('addText', canvasX, canvasY, screenX, screenY)
 }
 </script>
