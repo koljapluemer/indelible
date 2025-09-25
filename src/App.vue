@@ -20,6 +20,7 @@ const pendingTextPosition = ref({ x: 0, y: 0 })
 const showNewCanvasModal = ref(false)
 const showCanvasListModal = ref(false)
 const isStartingTextInput = ref(false)
+const textInputRef = ref<InstanceType<typeof TextInput>>()
 
 const canvasManager = useCanvasManager()
 const canvasState = useCanvasState()
@@ -288,9 +289,9 @@ const handleDocumentClick = (event: MouseEvent) => {
 
   // If text input is visible and user clicks outside of it, save the text
   if (showTextInput.value) {
-    const textInput = document.querySelector('[contenteditable="true"]')
-    if (textInput && !textInput.contains(event.target as Node)) {
-      handleTextConfirm(textInput.innerHTML)
+    const textInputElement = document.querySelector('.ProseMirror')
+    if (textInputElement && !textInputElement.contains(event.target as Node)) {
+      textInputRef.value?.confirmText()
     }
   }
 }
@@ -372,6 +373,7 @@ onUnmounted(() => {
     />
 
     <TextInput
+      ref="textInputRef"
       :is-visible="showTextInput"
       :position="textInputPosition"
       @confirm="handleTextConfirm"

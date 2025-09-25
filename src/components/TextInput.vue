@@ -1,27 +1,34 @@
 <template>
-  <!-- Invisible text editor positioned exactly where text will appear -->
+  <!-- Invisible Tiptap editor positioned exactly where text will appear -->
   <div
     v-if="isVisible"
-    ref="textEditor"
-    contenteditable="true"
-    class="fixed z-50 text-base-content focus:outline-none"
+    class="fixed z-50"
     :style="{
       left: position.x + 'px',
       top: position.y + 'px',
-      background: 'transparent',
-      border: 'none',
       minWidth: '20px',
-      minHeight: '1.5rem',
-      wordWrap: 'break-word',
-      whiteSpace: 'pre-wrap'
+      minHeight: '1.5rem'
     }"
-    @keydown="handleKeydown"
-    @input="updateContent"
-  />
+  >
+    <EditorContent
+      v-if="editor"
+      :editor="editor"
+      class="prose prose-sm text-base-content focus:outline-none max-w-none"
+      :style="{
+        background: 'transparent',
+        border: 'none'
+      }"
+    />
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch } from 'vue'
+import { watch, nextTick } from 'vue'
+import { useEditor, EditorContent } from '@tiptap/vue-3'
+import StarterKit from '@tiptap/starter-kit'
+import Underline from '@tiptap/extension-underline'
+import Link from '@tiptap/extension-link'
+import Typography from '@tiptap/extension-typography'
 
 interface TextInputProps {
   isVisible: boolean
@@ -36,51 +43,62 @@ interface TextInputEmits {
 const props = defineProps<TextInputProps>()
 const emit = defineEmits<TextInputEmits>()
 
-const textEditor = ref<HTMLDivElement>()
-
-const updateContent = () => {
-  // Keep content updated
-}
-
-const handleKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape') {
-    event.preventDefault()
-    cancelText()
-  } else if (event.ctrlKey || event.metaKey) {
-    if (event.key === 'b') {
-      event.preventDefault()
-      document.execCommand('bold', false)
-    } else if (event.key === 'i') {
-      event.preventDefault()
-      document.execCommand('italic', false)
-    }
-  }
-}
-
 const cancelText = () => {
   emit('cancel')
-  clearEditor()
-}
-
-const clearEditor = () => {
-  if (textEditor.value) {
-    textEditor.value.innerHTML = ''
+  if (editor.value) {
+    editor.value.commands.clearContent()
   }
 }
 
-watch(() => props.isVisible, async (visible) => {
-  if (visible) {
-    await nextTick()
-    textEditor.value?.focus()
-    // Place cursor at end
-    const range = document.createRange()
-    const selection = window.getSelection()
-    if (textEditor.value && selection) {
-      range.selectNodeContents(textEditor.value)
-      range.collapse(false)
-      selection.removeAllRanges()
-      selection.addRange(range)
+const confirmText = () => {
+  if (editor.value) {
+    const html = editor.value.getHTML()
+    emit('confirm', html)
+    editor.value.commands.clearContent()
+  }
+}
+
+const editor = useEditor({
+  extensions: [
+    StarterKit,
+    Underline,
+    Link.configure({
+      openOnClick: false,
+    }),
+    Typography,
+  ],
+  content: '',
+  editorProps: {
+    attributes: {
+      class: 'focus:outline-none prose prose-sm text-base-content max-w-none',
+    },
+    handleKeyDown: (_view, event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        cancelText()
+        return true
+      }
+      return false
+    },
+  },
+  editable: false, // Start disabled
+})
+
+watch(() => props.isVisible, (visible) => {
+  if (editor.value) {
+    if (visible) {
+      editor.value.setEditable(true)
+      nextTick(() => {
+        editor.value?.commands.focus('end')
+      })
+    } else {
+      editor.value.setEditable(false)
+      editor.value.commands.clearContent()
     }
   }
+})
+
+defineExpose({
+  confirmText
 })
 </script>

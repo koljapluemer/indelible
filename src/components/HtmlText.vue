@@ -1,7 +1,6 @@
 <template>
   <div
-    class="html-content text-base-content"
-    style="word-wrap: break-word; white-space: pre-wrap;"
+    class="prose prose-sm text-base-content max-w-none"
     v-html="sanitizedContent"
   />
 </template>
@@ -15,43 +14,19 @@ interface HtmlTextProps {
 
 const props = defineProps<HtmlTextProps>()
 
-// Basic HTML sanitization - only allow safe formatting tags
+// Enhanced HTML sanitization for markdown-style content
 const sanitizedContent = computed(() => {
-  const allowedTags = ['b', 'strong', 'i', 'em', 'u', 'br', 'p', 'div']
+  const allowedTags = [
+    'p', 'br', 'div',
+    'strong', 'b', 'em', 'i', 'u',
+    'ul', 'ol', 'li',
+    'blockquote',
+    'a',
+    'code',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6'
+  ]
   const allowedTagsRegex = new RegExp(`<(?!/?(?:${allowedTags.join('|')})\\b)[^>]+>`, 'gi')
 
   return props.content.replace(allowedTagsRegex, '')
 })
 </script>
-
-<style scoped>
-.html-content :deep(b),
-.html-content :deep(strong) {
-  font-weight: bold;
-}
-
-.html-content :deep(i),
-.html-content :deep(em) {
-  font-style: italic;
-}
-
-.html-content :deep(u) {
-  text-decoration: underline;
-}
-
-.html-content :deep(p) {
-  margin-bottom: 0.5rem;
-}
-
-.html-content :deep(p:last-child) {
-  margin-bottom: 0;
-}
-
-.html-content :deep(div) {
-  margin-bottom: 0.25rem;
-}
-
-.html-content :deep(div:last-child) {
-  margin-bottom: 0;
-}
-</style>
