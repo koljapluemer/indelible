@@ -2,7 +2,9 @@
 
 # Indelible
 
-A minimalist infinite canvas application for creating and organizing visual notes, drawings, and text.
+A note-taking web app with no undo. The idea: Free thinking over perfectionism.
+
+Minimalist, local-first.
 
 ## Features
 
