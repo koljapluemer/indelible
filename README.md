@@ -1,3 +1,5 @@
+![Screenshot](indelible.webp)
+
 # Indelible
 
 A minimalist infinite canvas application for creating and organizing visual notes, drawings, and text.
