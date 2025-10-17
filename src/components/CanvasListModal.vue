@@ -7,7 +7,18 @@
         <p>No canvases yet. Create your first one!</p>
       </div>
 
-      <div v-else class="overflow-x-auto max-h-96">
+      <div v-else>
+        <!-- Search Bar -->
+        <div class="form-control mb-4">
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Search canvases..."
+            class="input input-bordered w-full"
+          />
+        </div>
+
+        <div class="overflow-x-auto max-h-96">
         <table class="table table-sm">
           <thead>
             <tr>
@@ -19,7 +30,7 @@
           </thead>
           <tbody>
             <tr
-              v-for="canvas in canvases"
+              v-for="canvas in filteredCanvases"
               :key="canvas.id"
               class="cursor-pointer hover:bg-base-200"
               :class="[
@@ -59,6 +70,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
 import { Trash2 } from 'lucide-vue-next'
 import type { Canvas } from '../stores/database'
 
@@ -74,8 +86,34 @@ interface CanvasListModalEmits {
   delete: [canvasId: string]
 }
 
-defineProps<CanvasListModalProps>()
+const props = defineProps<CanvasListModalProps>()
 defineEmits<CanvasListModalEmits>()
+
+const searchQuery = ref('')
+
+// Simple fuzzy search function
+const fuzzyMatch = (text: string, query: string): boolean => {
+  const textLower = text.toLowerCase()
+  const queryLower = query.toLowerCase()
+
+  if (queryLower === '') return true
+
+  let queryIndex = 0
+  for (let i = 0; i < textLower.length && queryIndex < queryLower.length; i++) {
+    if (textLower[i] === queryLower[queryIndex]) {
+      queryIndex++
+    }
+  }
+  return queryIndex === queryLower.length
+}
+
+const filteredCanvases = computed(() => {
+  if (!searchQuery.value) return props.canvases
+
+  return props.canvases.filter(canvas =>
+    fuzzyMatch(canvas.slug, searchQuery.value)
+  )
+})
 
 const formatDate = (timestamp: number): string => {
   const date = new Date(timestamp)
