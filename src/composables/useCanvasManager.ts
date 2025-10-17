@@ -62,7 +62,7 @@ export function useCanvasManager() {
       }
 
       const id = await db.canvases.add(canvas)
-      canvas.id = id
+      canvas.id = id as string
 
       currentCanvas.value = canvas
       elements.value = []
@@ -79,7 +79,7 @@ export function useCanvasManager() {
     return await loadCanvas(slug)
   }
 
-  const deleteCanvas = async (canvasId: number): Promise<boolean> => {
+  const deleteCanvas = async (canvasId: string): Promise<boolean> => {
     try {
       // Delete all elements for this canvas
       await db.canvasElements.where('canvasId').equals(canvasId).delete()

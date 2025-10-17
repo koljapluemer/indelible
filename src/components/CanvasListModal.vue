@@ -71,7 +71,7 @@ interface CanvasListModalProps {
 interface CanvasListModalEmits {
   close: []
   switch: [slug: string]
-  delete: [canvasId: number]
+  delete: [canvasId: string]
 }
 
 defineProps<CanvasListModalProps>()

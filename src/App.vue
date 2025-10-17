@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { Plus, List } from 'lucide-vue-next'
+import { Plus, List, Settings } from 'lucide-vue-next'
 import InfinitePannableCanvas from './components/InfinitePannableCanvas.vue'
 import Toolbar from './components/Toolbar.vue'
 import TextInput from './components/TextInput.vue'
 import NewCanvasModal from './components/NewCanvasModal.vue'
 import CanvasListModal from './components/CanvasListModal.vue'
+import SettingsModal from './components/SettingsModal.vue'
 import ImagePreview from './components/ImagePreview.vue'
 import ImageSizeModal from './components/ImageSizeModal.vue'
 import DrawingPreview from './components/DrawingPreview.vue'
@@ -19,6 +20,7 @@ const textInputPosition = ref({ x: 0, y: 0 })
 const pendingTextPosition = ref({ x: 0, y: 0 })
 const showNewCanvasModal = ref(false)
 const showCanvasListModal = ref(false)
+const showSettingsModal = ref(false)
 const isStartingTextInput = ref(false)
 const textInputRef = ref<InstanceType<typeof TextInput>>()
 
@@ -98,7 +100,7 @@ const handleSwitchCanvas = async (slug: string) => {
   showCanvasListModal.value = false
 }
 
-const handleDeleteCanvas = async (canvasId: number) => {
+const handleDeleteCanvas = async (canvasId: string) => {
   if (confirm('Are you sure you want to delete this canvas? This action cannot be undone.')) {
     const success = await canvasManager.deleteCanvas(canvasId)
     if (!success) {
@@ -346,6 +348,13 @@ onUnmounted(() => {
         >
           <List class="w-4 h-4" />
         </button>
+        <button
+          class="btn btn-sm btn-ghost"
+          @click="showSettingsModal = true"
+          title="Settings & Sync"
+        >
+          <Settings class="w-4 h-4" />
+        </button>
         <div v-if="canvasManager.currentCanvas.value" class="divider divider-horizontal mx-0"></div>
         <span v-if="canvasManager.currentCanvas.value" class="text-sm font-mono">
           {{ canvasManager.currentCanvas.value.slug }}
@@ -394,6 +403,11 @@ onUnmounted(() => {
       @close="showCanvasListModal = false"
       @switch="handleSwitchCanvas"
       @delete="handleDeleteCanvas"
+    />
+
+    <SettingsModal
+      :is-visible="showSettingsModal"
+      @close="showSettingsModal = false"
     />
 
     <ImagePreview :preview="canvasState.imageWorkflow.value" />
