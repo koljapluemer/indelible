@@ -1,21 +1,18 @@
 <template>
   <div
     v-if="isActive"
-    class="fixed inset-0 pointer-events-none z-40"
+    class="absolute inset-0 pointer-events-none z-40"
   >
     <svg class="w-full h-full">
       <line
         v-if="elementType === 'line'"
-        :x1="startX"
-        :y1="startY"
-        :x2="endX"
-        :y2="endY"
+        :x1="s1.x" :y1="s1.y"
+        :x2="s2.x" :y2="s2.y"
         stroke="currentColor"
         stroke-width="2"
         class="text-primary"
       />
       <g v-else-if="elementType === 'tape'">
-        <!-- Tape as thick line with beige color and dotted pattern -->
         <defs>
           <pattern id="tape-stroke-dots" patternUnits="userSpaceOnUse" width="8" height="8">
             <rect width="8" height="8" fill="#f5f5dc" />
@@ -23,18 +20,16 @@
           </pattern>
         </defs>
         <line
-          :x1="startX"
-          :y1="startY"
-          :x2="endX"
-          :y2="endY"
+          :x1="s1.x" :y1="s1.y"
+          :x2="s2.x" :y2="s2.y"
           stroke="url(#tape-stroke-dots)"
           stroke-width="80"
           stroke-linecap="round"
         />
       </g>
       <polyline
-        v-else-if="elementType === 'drawing' && drawingPath && drawingPath.length > 1"
-        :points="drawingPath.map(p => `${p.x},${p.y}`).join(' ')"
+        v-else-if="elementType === 'drawing' && screenPath.length > 1"
+        :points="screenPath.map(p => `${p.x},${p.y}`).join(' ')"
         stroke="currentColor"
         stroke-width="2"
         fill="none"
@@ -47,7 +42,9 @@
 </template>
 
 <script setup lang="ts">
-import type { DrawingElement } from '../utils/drawingUtils'
+import { computed } from 'vue'
+import { useViewport } from '@/composables/useViewport'
+import type { DrawingElement } from '@/utils/drawingUtils'
 
 interface DrawingPreviewProps {
   isActive: boolean
@@ -59,5 +56,11 @@ interface DrawingPreviewProps {
   drawingPath?: { x: number; y: number }[]
 }
 
-defineProps<DrawingPreviewProps>()
+const props = defineProps<DrawingPreviewProps>()
+
+const { canvasToScreen } = useViewport()
+
+const s1 = computed(() => canvasToScreen(props.startX, props.startY))
+const s2 = computed(() => canvasToScreen(props.endX, props.endY))
+const screenPath = computed(() => (props.drawingPath ?? []).map(p => canvasToScreen(p.x, p.y)))
 </script>

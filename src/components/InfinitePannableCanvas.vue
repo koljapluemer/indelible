@@ -10,7 +10,7 @@
     @mousemove="handlePanning"
     @mouseup="stopPanning"
     @mouseleave="stopPanning"
-    @wheel="handleWheel"
+    @wheel.prevent="handleWheel"
     @click="handleCanvasClick"
   >
     <!-- Grid pattern background -->
@@ -29,105 +29,28 @@
     <div
       ref="canvas"
       class="relative"
-      :style="canvasStyle"
-      style="width: 10000px; height: 10000px;"
+      :style="{ transform: cssTransform, transformOrigin: '0 0', width: '10000px', height: '10000px' }"
     >
-      <!-- Canvas elements -->
       <div
         v-for="element in elements"
         :key="element.id"
         class="absolute pointer-events-none select-none"
         :style="{
-          left: element.x + 'px',
-          top: element.y + 'px',
+          left: Math.round(element.x) + 'px',
+          top: Math.round(element.y) + 'px',
           transform: `scale(${element.scale})`
         }"
       >
-        <HtmlText
-          v-if="element.type === 'text'"
-          :content="element.data"
-        />
-        <img
-          v-else-if="element.type === 'image'"
-          :src="element.data"
-          :width="element.width"
-          :height="element.height"
-          class="block"
-        />
-        <svg
-          v-else-if="element.type === 'line'"
-          class="absolute pointer-events-none"
-          :style="{
-            width: Math.abs((element.endX || element.x) - element.x) + 4 + 'px',
-            height: Math.abs((element.endY || element.y) - element.y) + 4 + 'px',
-            left: (Math.min(element.x, element.endX || element.x) - element.x - 2) + 'px',
-            top: (Math.min(element.y, element.endY || element.y) - element.y - 2) + 'px'
-          }"
-        >
-          <line
-            :x1="element.x <= (element.endX || element.x) ? 2 : Math.abs((element.endX || element.x) - element.x) + 2"
-            :y1="element.y <= (element.endY || element.y) ? 2 : Math.abs((element.endY || element.y) - element.y) + 2"
-            :x2="element.x <= (element.endX || element.x) ? Math.abs((element.endX || element.x) - element.x) + 2 : 2"
-            :y2="element.y <= (element.endY || element.y) ? Math.abs((element.endY || element.y) - element.y) + 2 : 2"
-            stroke="currentColor"
-            stroke-width="2"
-            class="text-base-content"
-          />
-        </svg>
-        <svg
-          v-else-if="element.type === 'tape'"
-          class="absolute pointer-events-none"
-          :style="{
-            width: Math.abs((element.endX || element.x) - element.x) + 84 + 'px',
-            height: Math.abs((element.endY || element.y) - element.y) + 84 + 'px',
-            left: (Math.min(element.x, element.endX || element.x) - element.x - 42) + 'px',
-            top: (Math.min(element.y, element.endY || element.y) - element.y - 42) + 'px'
-          }"
-        >
-          <defs>
-            <pattern :id="`tape-dots-${element.id}`" patternUnits="userSpaceOnUse" width="8" height="8">
-              <rect width="8" height="8" fill="#f5f5dc" />
-              <circle cx="4" cy="4" r="1" fill="#e6d7a3" />
-            </pattern>
-          </defs>
-          <line
-            :x1="element.x <= (element.endX || element.x) ? 42 : Math.abs((element.endX || element.x) - element.x) + 42"
-            :y1="element.y <= (element.endY || element.y) ? 42 : Math.abs((element.endY || element.y) - element.y) + 42"
-            :x2="element.x <= (element.endX || element.x) ? Math.abs((element.endX || element.x) - element.x) + 42 : 42"
-            :y2="element.y <= (element.endY || element.y) ? Math.abs((element.endY || element.y) - element.y) + 42 : 42"
-            :stroke="`url(#tape-dots-${element.id})`"
-            stroke-width="80"
-            stroke-linecap="round"
-          />
-        </svg>
-        <svg
-          v-else-if="element.type === 'drawing'"
-          class="absolute pointer-events-none"
-          :style="{
-            width: '10000px',
-            height: '10000px',
-            left: -element.x + 'px',
-            top: -element.y + 'px'
-          }"
-        >
-          <polyline
-            :points="JSON.parse(element.data).map((p: any) => `${p.x},${p.y}`).join(' ')"
-            stroke="currentColor"
-            stroke-width="2"
-            fill="none"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="text-base-content"
-          />
-        </svg>
+        <slot :element="element" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import HtmlText from './HtmlText.vue'
+import { ref } from 'vue'
+import { useViewport } from '../composables/useViewport'
+import { useCanvasState } from '../composables/useCanvasState'
 import type { CanvasElement } from '../stores/database'
 
 interface CanvasProps {
@@ -136,14 +59,13 @@ interface CanvasProps {
 }
 
 interface CanvasEmits {
-  addText: [canvasX: number, canvasY: number, screenX: number, screenY: number]
+  addText: [canvasX: number, canvasY: number, clientX: number, clientY: number]
   addImage: [canvasX: number, canvasY: number]
   startLine: [canvasX: number, canvasY: number]
   finishLine: [canvasX: number, canvasY: number]
   startDraw: [canvasX: number, canvasY: number]
   addDrawPoint: [canvasX: number, canvasY: number]
   finishDraw: []
-  transformChange: [transform: { x: number, y: number, scale: number }]
 }
 
 const props = defineProps<CanvasProps>()
@@ -152,55 +74,41 @@ const emit = defineEmits<CanvasEmits>()
 const canvasContainer = ref<HTMLElement>()
 const canvas = ref<HTMLElement>()
 
-const transform = ref({ x: 0, y: 0, scale: 1 })
+const { viewport, setViewport, screenToCanvas, cssTransform } = useViewport()
+const canvasState = useCanvasState()
+
 const isPanning = ref(false)
 const lastPanPoint = ref({ x: 0, y: 0 })
 
-const canvasStyle = computed(() => ({
-  transform: `translate(${transform.value.x}px, ${transform.value.y}px) scale(${transform.value.scale})`,
-  transformOrigin: '0 0'
-}))
+const getContainerCoords = (event: MouseEvent) => {
+  const rect = canvasContainer.value?.getBoundingClientRect()
+  if (!rect) return null
+  return { sx: event.clientX - rect.left, sy: event.clientY - rect.top }
+}
 
 const startPanning = (event: MouseEvent) => {
-  // Check if we should start drawing instead
-  const app = document.documentElement
-  const isDrawTool = app.querySelector('[data-draw-tool-active="true"]')
-
-  if (isDrawTool) {
-    // Start drawing
-    const rect = canvasContainer.value?.getBoundingClientRect()
-    if (rect) {
-      const screenX = event.clientX - rect.left
-      const screenY = event.clientY - rect.top
-      const canvasX = (screenX - transform.value.x) / transform.value.scale
-      const canvasY = (screenY - transform.value.y) / transform.value.scale
-      emit('startDraw', canvasX, canvasY)
+  if (canvasState.currentTool.value === 'draw' && canvasState.canvasState.value === 'idle') {
+    const coords = getContainerCoords(event)
+    if (coords) {
+      const { x, y } = screenToCanvas(coords.sx, coords.sy)
+      emit('startDraw', x, y)
     }
     event.preventDefault()
     return
   }
 
   if (!props.isPanMode) return
-
   isPanning.value = true
   lastPanPoint.value = { x: event.clientX, y: event.clientY }
   event.preventDefault()
 }
 
 const handlePanning = (event: MouseEvent) => {
-  // Check if we're in free drawing mode
-  const app = document.documentElement
-  const isFreeDrawing = app.querySelector('[data-free-drawing-active="true"]')
-
-  if (isFreeDrawing) {
-    // Add point to drawing
-    const rect = canvasContainer.value?.getBoundingClientRect()
-    if (rect) {
-      const screenX = event.clientX - rect.left
-      const screenY = event.clientY - rect.top
-      const canvasX = (screenX - transform.value.x) / transform.value.scale
-      const canvasY = (screenY - transform.value.y) / transform.value.scale
-      emit('addDrawPoint', canvasX, canvasY)
+  if (canvasState.isFreeDrawingActive.value) {
+    const coords = getContainerCoords(event)
+    if (coords) {
+      const { x, y } = screenToCanvas(coords.sx, coords.sy)
+      emit('addDrawPoint', x, y)
     }
     event.preventDefault()
     return
@@ -211,90 +119,66 @@ const handlePanning = (event: MouseEvent) => {
   const deltaX = event.clientX - lastPanPoint.value.x
   const deltaY = event.clientY - lastPanPoint.value.y
 
-  transform.value.x += deltaX
-  transform.value.y += deltaY
+  setViewport({
+    x: viewport.value.x + deltaX,
+    y: viewport.value.y + deltaY,
+    scale: viewport.value.scale,
+  })
 
   lastPanPoint.value = { x: event.clientX, y: event.clientY }
   event.preventDefault()
-
-  emit('transformChange', { ...transform.value })
 }
 
 const stopPanning = () => {
-  // Check if we're finishing a drawing
-  const app = document.documentElement
-  const isFreeDrawing = app.querySelector('[data-free-drawing-active="true"]')
-
-  if (isFreeDrawing) {
+  if (canvasState.isFreeDrawingActive.value) {
     emit('finishDraw')
     return
   }
-
   isPanning.value = false
 }
 
 const handleWheel = (event: WheelEvent) => {
-  event.preventDefault()
-
   const scaleFactor = event.deltaY > 0 ? 0.9 : 1.1
-  const newScale = Math.max(0.1, Math.min(3, transform.value.scale * scaleFactor))
+  const newScale = Math.max(0.1, Math.min(3, viewport.value.scale * scaleFactor))
 
-  if (newScale !== transform.value.scale) {
-    const rect = canvasContainer.value?.getBoundingClientRect()
-    if (rect) {
-      const mouseX = event.clientX - rect.left
-      const mouseY = event.clientY - rect.top
+  if (newScale === viewport.value.scale) return
 
-      // Calculate the point to zoom into
-      const beforeZoomX = (mouseX - transform.value.x) / transform.value.scale
-      const beforeZoomY = (mouseY - transform.value.y) / transform.value.scale
+  const rect = canvasContainer.value?.getBoundingClientRect()
+  if (!rect) return
 
-      transform.value.scale = newScale
+  const mouseX = event.clientX - rect.left
+  const mouseY = event.clientY - rect.top
+  const beforeX = (mouseX - viewport.value.x) / viewport.value.scale
+  const beforeY = (mouseY - viewport.value.y) / viewport.value.scale
 
-      // Adjust position to zoom into the mouse position
-      transform.value.x = mouseX - beforeZoomX * newScale
-      transform.value.y = mouseY - beforeZoomY * newScale
-
-      emit('transformChange', { ...transform.value })
-    }
-  }
+  setViewport({
+    scale: newScale,
+    x: mouseX - beforeX * newScale,
+    y: mouseY - beforeY * newScale,
+  })
 }
 
 const handleCanvasClick = (event: MouseEvent) => {
   if (props.isPanMode || isPanning.value) return
 
-  const rect = canvasContainer.value?.getBoundingClientRect()
-  if (!rect) return
+  const coords = getContainerCoords(event)
+  if (!coords) return
 
-  const screenX = event.clientX - rect.left
-  const screenY = event.clientY - rect.top
+  const { x: canvasX, y: canvasY } = screenToCanvas(coords.sx, coords.sy)
+  const tool = canvasState.currentTool.value
+  const state = canvasState.canvasState.value
 
-  // Convert screen coordinates to canvas coordinates
-  const canvasX = (screenX - transform.value.x) / transform.value.scale
-  const canvasY = (screenY - transform.value.y) / transform.value.scale
-
-  // Check states by looking at parent component data attributes
-  const app = document.documentElement
-  const isImagePreview = app.querySelector('[data-image-preview-active="true"]')
-  const isLineDrawing = app.querySelector('[data-line-drawing-active="true"]')
-
-  if (isImagePreview) {
+  if (canvasState.isImageWorkflowActive.value) {
     emit('addImage', canvasX, canvasY)
-  } else if (isLineDrawing) {
+  } else if (canvasState.isDrawingActive.value) {
     emit('finishLine', canvasX, canvasY)
-  } else {
-    // Determine action based on current tool state from parent
-    const isTextTool = app.querySelector('[data-text-tool-active="true"]')
-    const isLineTool = app.querySelector('[data-line-tool-active="true"]')
-    const isTapeTool = app.querySelector('[data-tape-tool-active="true"]')
-    const isDrawTool = app.querySelector('[data-draw-tool-active="true"]')
-
-    if (isLineTool || isTapeTool) {
+  } else if (state === 'idle') {
+    if (tool === 'line' || tool === 'tape') {
       emit('startLine', canvasX, canvasY)
-    } else if (isDrawTool) {
+    } else if (tool === 'draw') {
       emit('startDraw', canvasX, canvasY)
-    } else if (isTextTool) {
-      emit('addText', canvasX, canvasY, screenX, screenY)
+    } else if (tool === 'text') {
+      emit('addText', canvasX, canvasY, event.clientX, event.clientY)
     }
   }
 }

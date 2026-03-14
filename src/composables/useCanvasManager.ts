@@ -56,14 +56,13 @@ export function useCanvasManager() {
 
       const now = Date.now()
       const canvas: Canvas = {
+        id: crypto.randomUUID(),
         slug,
         createdAt: now,
         updatedAt: now
       }
 
-      const id = await db.canvases.add(canvas)
-      canvas.id = id as string
-
+      await db.canvases.add(canvas)
       currentCanvas.value = canvas
       elements.value = []
       setCanvasInUrl(slug)
@@ -118,6 +117,7 @@ export function useCanvasManager() {
 
     try {
       const element: CanvasElement = {
+        id: crypto.randomUUID(),
         canvasId: currentCanvas.value.id,
         type: 'text',
         x,
@@ -127,8 +127,7 @@ export function useCanvasManager() {
         timestamp: Date.now()
       }
 
-      const id = await db.canvasElements.add(element)
-      element.id = id
+      await db.canvasElements.add(element)
       elements.value.push(element)
 
       // Update canvas timestamp
@@ -147,6 +146,7 @@ export function useCanvasManager() {
 
     try {
       const element: CanvasElement = {
+        id: crypto.randomUUID(),
         canvasId: currentCanvas.value.id,
         type: 'image',
         x,
@@ -158,8 +158,7 @@ export function useCanvasManager() {
         timestamp: Date.now()
       }
 
-      const id = await db.canvasElements.add(element)
-      element.id = id
+      await db.canvasElements.add(element)
       elements.value.push(element)
 
       // Update canvas timestamp
@@ -178,19 +177,19 @@ export function useCanvasManager() {
 
     try {
       const element: CanvasElement = {
+        id: crypto.randomUUID(),
         canvasId: currentCanvas.value.id,
         type,
         x: startX,
         y: startY,
         endX,
         endY,
-        data: '', // Drawing elements don't need data
+        data: '',
         scale: 1,
         timestamp: Date.now()
       }
 
-      const id = await db.canvasElements.add(element)
-      element.id = id
+      await db.canvasElements.add(element)
       elements.value.push(element)
 
       // Update canvas timestamp
@@ -217,6 +216,7 @@ export function useCanvasManager() {
 
     try {
       const element: CanvasElement = {
+        id: crypto.randomUUID(),
         canvasId: currentCanvas.value.id,
         type: 'drawing',
         x: firstPoint.x,
@@ -226,8 +226,7 @@ export function useCanvasManager() {
         timestamp: Date.now()
       }
 
-      const id = await db.canvasElements.add(element)
-      element.id = id
+      await db.canvasElements.add(element)
       elements.value.push(element)
 
       // Update canvas timestamp
@@ -321,11 +320,13 @@ export function useCanvasManager() {
             await db.canvasElements.where('canvasId').equals(canvasId).delete()
             await db.canvases.update(canvasId, { updatedAt: now })
           } else {
-            canvasId = (await db.canvases.add({
+            canvasId = crypto.randomUUID()
+            await db.canvases.add({
+              id: canvasId,
               slug: canvasData.slug,
               createdAt: canvasData.createdAt ?? now,
               updatedAt: now
-            })) as string
+            })
           }
 
           if (Array.isArray(canvasData.elements)) {

@@ -1,227 +1,117 @@
 import { ref, computed } from 'vue'
-import { createDrawingWorkflow, startDrawing, updateDrawingEnd, finishDrawing, cancelDrawing, type DrawingWorkflow, type DrawingElement } from '../utils/drawingUtils'
+import { useImageWorkflow } from './useImageWorkflow'
+import { useDrawWorkflow } from './useDrawWorkflow'
 
-// Main canvas state machine
 type CanvasTool = 'pan' | 'text' | 'image' | 'line' | 'tape' | 'draw'
 type CanvasState = 'idle' | 'text-input' | 'image-workflow' | 'drawing' | 'free-drawing'
 
-// Image workflow - two step process
-type ImageState = 'size-selection' | 'positioning'
-type ImageSize = 'small' | 'medium' | 'large'
-
-interface ImageWorkflow {
-  isActive: boolean
-  state: ImageState
-  data: string
-  originalWidth: number
-  originalHeight: number
-  selectedSize: ImageSize | null
-  displayWidth: number
-  displayHeight: number
-  x: number
-  y: number
-}
-
-// Use the drawing workflow from utils
-
-interface FreeDrawingWorkflow {
-  isActive: boolean
-  currentPath: { x: number; y: number }[]
-}
-
 const currentTool = ref<CanvasTool>('pan')
 const canvasState = ref<CanvasState>('idle')
-const imageWorkflow = ref<ImageWorkflow>({
-  isActive: false,
-  state: 'size-selection',
-  data: '',
-  originalWidth: 0,
-  originalHeight: 0,
-  selectedSize: null,
-  displayWidth: 0,
-  displayHeight: 0,
-  x: window.innerWidth / 2,
-  y: window.innerHeight / 2
-})
-
-const drawingWorkflow = ref<DrawingWorkflow>(createDrawingWorkflow('line'))
-
-const freeDrawingWorkflow = ref<FreeDrawingWorkflow>({
-  isActive: false,
-  currentPath: []
-})
 
 export function useCanvasState() {
+  const imageWorkflow = useImageWorkflow()
+  const drawWorkflow = useDrawWorkflow()
+
   const setTool = (tool: CanvasTool) => {
-    // Reset any active workflows when switching tools
-    if (tool !== 'image') {
-      imageWorkflow.value.isActive = false
-    }
-    if (tool !== 'line' && tool !== 'tape') {
-      drawingWorkflow.value = cancelDrawing(drawingWorkflow.value)
-    }
-    if (tool !== 'draw') {
-      freeDrawingWorkflow.value.isActive = false
-      freeDrawingWorkflow.value.currentPath = []
-    }
-    if (tool !== 'image' && tool !== 'line' && tool !== 'tape' && tool !== 'draw') {
-      canvasState.value = 'idle'
-    }
+    if (tool !== 'image') imageWorkflow.cancel()
+    if (tool !== 'line' && tool !== 'tape') drawWorkflow.cancelLine()
+    if (tool !== 'draw') drawWorkflow.cancelFree()
+    if (!['image', 'line', 'tape', 'draw'].includes(tool)) canvasState.value = 'idle'
     currentTool.value = tool
   }
 
+  // Text
+  const startTextInput = () => { canvasState.value = 'text-input' }
+  const completeTextInput = () => { canvasState.value = 'idle' }
+
+  // Image — delegates to useImageWorkflow; keeps canvasState in sync
   const startImageWorkflow = (data: string, width: number, height: number) => {
     currentTool.value = 'image'
     canvasState.value = 'image-workflow'
-
-    imageWorkflow.value = {
-      isActive: true,
-      state: 'size-selection',
-      data,
-      originalWidth: width,
-      originalHeight: height,
-      selectedSize: null,
-      displayWidth: 0,
-      displayHeight: 0,
-      x: window.innerWidth / 2,
-      y: window.innerHeight / 2
-    }
+    imageWorkflow.activateWithData(data, width, height)
   }
-
-  const selectImageSize = (size: ImageSize) => {
-    if (!imageWorkflow.value.isActive) return
-
-    // Calculate display dimensions based on size
-    const maxWidths = { small: 200, medium: 400, large: 800 }
-    const maxWidth = maxWidths[size]
-
-    const aspectRatio = imageWorkflow.value.originalHeight / imageWorkflow.value.originalWidth
-    const displayWidth = Math.min(maxWidth, imageWorkflow.value.originalWidth)
-    const displayHeight = displayWidth * aspectRatio
-
-    imageWorkflow.value.selectedSize = size
-    imageWorkflow.value.displayWidth = displayWidth
-    imageWorkflow.value.displayHeight = displayHeight
-    imageWorkflow.value.state = 'positioning'
+  const selectImageSize = (size: 'small' | 'medium' | 'large') => {
+    imageWorkflow.selectSize(size)
   }
-
-  const updateImagePosition = (x: number, y: number) => {
-    if (imageWorkflow.value.isActive && imageWorkflow.value.state === 'positioning') {
-      imageWorkflow.value.x = x
-      imageWorkflow.value.y = y
-    }
+  const updateImagePosition = (canvasX: number, canvasY: number) => {
+    imageWorkflow.updatePosition(canvasX, canvasY)
   }
-
   const cancelImageWorkflow = () => {
-    imageWorkflow.value.isActive = false
+    imageWorkflow.cancel()
     canvasState.value = 'idle'
   }
-
   const finishImageWorkflow = () => {
-    imageWorkflow.value.isActive = false
+    imageWorkflow.cancel()
     canvasState.value = 'idle'
   }
 
-  const startTextInput = () => {
-    canvasState.value = 'text-input'
-  }
-
-  const completeTextInput = () => {
-    canvasState.value = 'idle'
-  }
-
-  const startElementDrawing = (element: DrawingElement, startX: number, startY: number) => {
+  // Drawing (line/tape) — delegates to useDrawWorkflow
+  const startElementDrawing = (element: 'line' | 'tape', startX: number, startY: number) => {
     canvasState.value = 'drawing'
-    drawingWorkflow.value = startDrawing(drawingWorkflow.value, element, startX, startY)
+    drawWorkflow.startLine(element, startX, startY)
   }
-
   const updateDrawingEndPosition = (endX: number, endY: number) => {
-    if (drawingWorkflow.value.isActive) {
-      drawingWorkflow.value = updateDrawingEnd(drawingWorkflow.value, endX, endY)
-    }
+    drawWorkflow.updateLineEnd(endX, endY)
   }
-
   const finishElementDrawing = () => {
-    drawingWorkflow.value = finishDrawing(drawingWorkflow.value)
     canvasState.value = 'idle'
+    // actual DB write triggered by App.vue via handleFinishDrawing
   }
-
   const cancelElementDrawing = () => {
-    drawingWorkflow.value = cancelDrawing(drawingWorkflow.value)
+    drawWorkflow.cancelLine()
     canvasState.value = 'idle'
   }
 
-  const startFreeDrawing = (startX: number, startY: number) => {
+  // Free drawing — delegates to useDrawWorkflow
+  const startFreeDrawing = (x: number, y: number) => {
     canvasState.value = 'free-drawing'
-    freeDrawingWorkflow.value = {
-      isActive: true,
-      currentPath: [{ x: startX, y: startY }]
-    }
+    drawWorkflow.startFree(x, y)
   }
-
   const addPointToDrawing = (x: number, y: number) => {
-    if (freeDrawingWorkflow.value.isActive) {
-      const lastPoint = freeDrawingWorkflow.value.currentPath[freeDrawingWorkflow.value.currentPath.length - 1]
-      // Only add point if it's far enough from the last point (optimization)
-      if (!lastPoint || Math.abs(x - lastPoint.x) > 2 || Math.abs(y - lastPoint.y) > 2) {
-        freeDrawingWorkflow.value.currentPath.push({ x, y })
-      }
-    }
+    drawWorkflow.addPoint(x, y)
   }
-
   const finishFreeDrawing = () => {
-    freeDrawingWorkflow.value.isActive = false
     canvasState.value = 'idle'
   }
-
   const cancelFreeDrawing = () => {
-    freeDrawingWorkflow.value.isActive = false
-    freeDrawingWorkflow.value.currentPath = []
+    drawWorkflow.cancelFree()
     canvasState.value = 'idle'
   }
 
   return {
-    // State
     currentTool: computed(() => currentTool.value),
     canvasState: computed(() => canvasState.value),
-    imageWorkflow: computed(() => imageWorkflow.value),
-    drawingWorkflow: computed(() => drawingWorkflow.value),
-    freeDrawingWorkflow: computed(() => freeDrawingWorkflow.value),
 
-    // Main state machine
+    // Expose workflow state for templates/previews
+    imageWorkflow: imageWorkflow.workflow,
+    drawingWorkflow: drawWorkflow.lineWorkflow,
+    freeDrawingWorkflow: drawWorkflow.freeWorkflow,
+
     setTool,
+
     startTextInput,
     completeTextInput,
 
-    // Image workflow sub-state machine
     startImageWorkflow,
     selectImageSize,
     updateImagePosition,
     cancelImageWorkflow,
     finishImageWorkflow,
 
-    // Drawing workflow sub-state machine (line, tape)
     startElementDrawing,
     updateDrawingEndPosition,
     finishElementDrawing,
     cancelElementDrawing,
 
-    // Free drawing workflow sub-state machine
     startFreeDrawing,
     addPointToDrawing,
     finishFreeDrawing,
     cancelFreeDrawing,
 
-    // Computed state checks
-    isImageWorkflowActive: computed(() => imageWorkflow.value.isActive),
-    isInSizeSelection: computed(() => imageWorkflow.value.isActive && imageWorkflow.value.state === 'size-selection'),
-    isInPositioning: computed(() => imageWorkflow.value.isActive && imageWorkflow.value.state === 'positioning'),
-    isDrawingActive: computed(() => drawingWorkflow.value.isActive),
-    isFreeDrawingActive: computed(() => freeDrawingWorkflow.value.isActive),
-    canHandleCanvasClick: computed(() =>
-      canvasState.value === 'idle' ||
-      canvasState.value === 'image-workflow' ||
-      canvasState.value === 'drawing'
-    )
+    isImageWorkflowActive: imageWorkflow.isActive,
+    isInSizeSelection: imageWorkflow.isInSizeSelection,
+    isInPositioning: imageWorkflow.isInPositioning,
+    isDrawingActive: drawWorkflow.isLineActive,
+    isFreeDrawingActive: drawWorkflow.isFreeActive,
   }
 }
