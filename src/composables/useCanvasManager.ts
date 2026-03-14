@@ -241,6 +241,116 @@ export function useCanvasManager() {
     }
   }
 
+  const exportCurrentCanvas = async (): Promise<void> => {
+    if (!currentCanvas.value?.id) return
+
+    const canvasElements = await db.canvasElements.where('canvasId').equals(currentCanvas.value.id).toArray()
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      canvases: [
+        {
+          slug: currentCanvas.value.slug,
+          createdAt: currentCanvas.value.createdAt,
+          updatedAt: currentCanvas.value.updatedAt,
+          elements: canvasElements.map(({ id: _id, canvasId: _cid, ...rest }) => rest)
+        }
+      ]
+    }
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${currentCanvas.value.slug}.indelible.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const exportAllCanvases = async (): Promise<void> => {
+    const allCanvases = await db.canvases.toArray()
+    const canvasesWithElements = await Promise.all(
+      allCanvases.map(async (canvas) => {
+        const canvasElements = canvas.id
+          ? await db.canvasElements.where('canvasId').equals(canvas.id).toArray()
+          : []
+        return {
+          slug: canvas.slug,
+          createdAt: canvas.createdAt,
+          updatedAt: canvas.updatedAt,
+          elements: canvasElements.map(({ id: _id, canvasId: _cid, ...rest }) => rest)
+        }
+      })
+    )
+
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      canvases: canvasesWithElements
+    }
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'indelible-export.json'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const importCanvases = async (file: File): Promise<{ imported: number; errors: string[] }> => {
+    const errors: string[] = []
+    let imported = 0
+
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+
+      if (data.version !== 1 || !Array.isArray(data.canvases)) {
+        return { imported: 0, errors: ['Invalid file format'] }
+      }
+
+      for (const canvasData of data.canvases) {
+        try {
+          const now = Date.now()
+          const existing = await db.canvases.where('slug').equals(canvasData.slug).first()
+
+          let canvasId: string
+          if (existing?.id) {
+            canvasId = existing.id
+            await db.canvasElements.where('canvasId').equals(canvasId).delete()
+            await db.canvases.update(canvasId, { updatedAt: now })
+          } else {
+            canvasId = (await db.canvases.add({
+              slug: canvasData.slug,
+              createdAt: canvasData.createdAt ?? now,
+              updatedAt: now
+            })) as string
+          }
+
+          if (Array.isArray(canvasData.elements)) {
+            await db.canvasElements.bulkAdd(
+              canvasData.elements.map((el: Omit<CanvasElement, 'id' | 'canvasId'>) => ({
+                ...el,
+                canvasId
+              }))
+            )
+          }
+
+          imported++
+        } catch (err) {
+          errors.push(`Failed to import canvas "${canvasData.slug}": ${err}`)
+        }
+      }
+
+      await loadCanvases()
+    } catch (err) {
+      return { imported: 0, errors: [`Failed to parse file: ${err}`] }
+    }
+
+    return { imported, errors }
+  }
+
   const initializeFromUrl = async (): Promise<boolean> => {
     await loadCanvases()
 
@@ -276,6 +386,9 @@ export function useCanvasManager() {
     addDrawingElement,
     addLineElement,
     addFreeDrawingElement,
-    initializeFromUrl
+    initializeFromUrl,
+    exportCurrentCanvas,
+    exportAllCanvases,
+    importCanvases
   }
 }

@@ -407,6 +407,7 @@ onUnmounted(() => {
 
     <SettingsModal
       :is-visible="showSettingsModal"
+      :current-canvas="canvasManager.currentCanvas.value"
       @close="showSettingsModal = false"
     />
 
