@@ -3,31 +3,18 @@
 
     <!-- Canvas list -->
     <div class="flex flex-col flex-1 min-h-0 p-2 gap-1">
-      <input
-        v-model="searchQuery"
-        type="text"
-        placeholder="Search…"
-        class="input input-xs w-full"
-      />
+      <input v-model="searchQuery" type="text" placeholder="Search…" class="input input-xs w-full" />
       <div class="flex-1 overflow-y-auto">
         <div v-if="canvases.length === 0" class="text-xs text-base-content/40 px-1 py-2">
           No canvases yet
         </div>
-        <div
-          v-for="canvas in filteredCanvases"
-          :key="canvas.id"
-          class="flex items-center justify-between w-full px-2 py-1 rounded cursor-pointer group"
-          :class="currentCanvas?.id === canvas.id
+        <div v-for="canvas in filteredCanvases" :key="canvas.id"
+          class="flex items-center justify-between w-full px-2 py-1 rounded cursor-pointer group" :class="currentCanvas?.id === canvas.id
             ? 'bg-primary/10 font-semibold'
-            : 'hover:bg-base-200'"
-          @click="handleSwitch(canvas.slug)"
-        >
+            : 'hover:bg-base-200'" @click="handleSwitch(canvas.slug)">
           <span class="font-mono text-xs truncate">{{ canvas.slug }}</span>
-          <button
-            class="opacity-0 group-hover:opacity-100 text-error shrink-0 ml-1"
-            @click.stop="handleDelete(canvas.id!)"
-            title="Delete"
-          >
+          <button class="opacity-0 group-hover:opacity-100 text-error shrink-0 ml-1"
+            @click.stop="handleDelete(canvas.id!)" title="Delete">
             <Trash2 class="w-3 h-3" />
           </button>
         </div>
@@ -37,19 +24,9 @@
     <!-- New canvas -->
     <div class="shrink-0 border-t border-base-200 p-2">
       <form class="flex gap-1" @submit.prevent="handleCreate">
-        <input
-          ref="newSlugInputRef"
-          v-model="newSlug"
-          type="text"
-          placeholder="new-canvas"
-          class="input input-xs flex-1 min-w-0"
-          :class="newSlug && !isValidNewSlug ? 'input-error' : ''"
-        />
-        <button
-          type="submit"
-          class="btn btn-xs btn-primary shrink-0"
-          :disabled="!isValidNewSlug"
-        >
+        <input ref="newSlugInputRef" v-model="newSlug" type="text" placeholder="new-canvas"
+          class="input input-xs flex-1 min-w-0" :class="newSlug && !isValidNewSlug ? 'input-error' : ''" />
+        <button type="submit" class="btn btn-xs btn-primary shrink-0" :disabled="!isValidNewSlug">
           <Plus class="w-3 h-3" />
         </button>
       </form>
@@ -57,29 +34,36 @@
 
     <!-- Export / Import -->
     <div class="shrink-0 border-t border-base-200 p-2 flex flex-col gap-1">
-      <button
-        class="btn btn-xs btn-ghost justify-start w-full"
-        :disabled="!currentCanvas"
-        @click="exportCurrentCanvas()"
-      >
+      <button class="btn btn-xs justify-start w-full" :disabled="!currentCanvas"
+        @click="exportCurrentCanvas()">
         <Download class="w-3 h-3" /> current
       </button>
-      <button
-        class="btn btn-xs btn-ghost justify-start w-full"
-        @click="exportAllCanvases()"
-      >
+      <button class="btn btn-xs justify-start w-full" @click="exportAllCanvases()">
         <Download class="w-3 h-3" /> all
       </button>
-      <button
-        class="btn btn-xs btn-ghost justify-start w-full"
-        @click="importFileRef?.click()"
-      >
+      <button class="btn btn-xs justify-start w-full" @click="importFileRef?.click()">
         <Upload class="w-3 h-3" /> import
       </button>
       <input ref="importFileRef" type="file" accept=".json" class="hidden" @change="handleImport" />
       <p v-if="importResult" class="text-xs mt-0.5" :class="importResult.errors.length ? 'text-error' : 'text-success'">
         {{ importResult.errors.length ? importResult.errors[0] : `Imported ${importResult.imported}` }}
       </p>
+      <hr>
+      <aside class="text-xs">
+        <p>
+          Made by
+          <a class="link" href="https://koljasam.com/" target="_blank">Kolja Sam</a>.
+        </p>
+
+        <p class="text-base-content/90">
+          All data saved on your local device.
+        </p>
+
+        <p>Support my work on <a href="https://ko-fi.com/S6S81CWUVD" target="_blank"
+            rel="noopener" class="link">
+            ko-fi
+          </a>.</p>
+      </aside>
     </div>
 
   </aside>
