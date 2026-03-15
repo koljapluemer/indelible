@@ -32,4 +32,14 @@ db.version(5).stores({
   canvasElements: '@id, canvasId, type, x, y, data, scale, width, height, endX, endY, timestamp'
 })
 
+// v6: switch from outbound auto-increment (@id) to inbound manual UUID (id).
+// Fresh DBs (e.g. anonymous windows) created at v5 had integer auto-increment keys;
+// the old stores are deleted and recreated correctly. Existing DBs whose stores were
+// originally created before @id was introduced already have inbound UUID keys, so
+// Dexie just updates indexes and all data is preserved.
+db.version(6).stores({
+  canvases: 'id, slug, createdAt, updatedAt',
+  canvasElements: 'id, canvasId, type, x, y, data, scale, width, height, endX, endY, timestamp'
+})
+
 export { db }

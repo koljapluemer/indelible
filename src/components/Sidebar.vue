@@ -9,14 +9,31 @@
           No canvases yet
         </div>
         <div v-for="canvas in filteredCanvases" :key="canvas.id"
-          class="flex items-center justify-between w-full px-2 py-1 rounded cursor-pointer group" :class="currentCanvas?.id === canvas.id
-            ? 'bg-primary/10 font-semibold'
-            : 'hover:bg-base-200'" @click="handleSwitch(canvas.slug)">
-          <span class="font-mono text-xs truncate">{{ canvas.slug }}</span>
-          <button class="opacity-0 group-hover:opacity-100 text-error shrink-0 ml-1"
-            @click.stop="handleDelete(canvas.id!)" title="Delete">
-            <Trash2 class="w-3 h-3" />
-          </button>
+          class="flex items-center justify-between w-full px-2 py-1 rounded group"
+          :class="currentCanvas?.id === canvas.id ? 'bg-primary/10 font-semibold' : 'hover:bg-base-200'">
+          <!-- Edit mode -->
+          <input
+            v-if="editingId === canvas.id"
+            ref="editInputRef"
+            v-model="editingSlug"
+            class="input input-xs flex-1 min-w-0"
+            @keydown.enter.prevent="commitEdit(canvas.id!)"
+            @keydown.escape.prevent="cancelEdit"
+            @blur="commitEdit(canvas.id!)"
+            @click.stop
+          />
+          <!-- Display mode -->
+          <template v-else>
+            <span class="font-mono text-xs truncate flex-1 cursor-pointer" @click="handleSwitch(canvas.slug)">{{ canvas.slug }}</span>
+            <div class="opacity-0 group-hover:opacity-100 flex items-center shrink-0 ml-1 gap-0.5">
+              <button @click.stop="startEdit(canvas)" title="Rename">
+                <Pencil class="w-3 h-3" />
+              </button>
+              <button class="text-error" @click.stop="handleDelete(canvas.id!)" title="Delete">
+                <Trash2 class="w-3 h-3" />
+              </button>
+            </div>
+          </template>
         </div>
       </div>
     </div>
@@ -25,8 +42,8 @@
     <div class="shrink-0 border-t border-base-200 p-2">
       <form class="flex gap-1" @submit.prevent="handleCreate">
         <input ref="newSlugInputRef" v-model="newSlug" type="text" placeholder="new-canvas"
-          class="input input-xs flex-1 min-w-0" :class="newSlug && !isValidNewSlug ? 'input-error' : ''" />
-        <button type="submit" class="btn btn-xs btn-primary shrink-0" :disabled="!isValidNewSlug">
+          class="input input-xs flex-1 min-w-0" />
+        <button type="submit" class="btn btn-xs btn-primary shrink-0" :disabled="!newSlug.trim()">
           <Plus class="w-3 h-3" />
         </button>
       </form>
@@ -70,9 +87,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { Trash2, Plus, Download, Upload } from 'lucide-vue-next'
+import { ref, computed, nextTick } from 'vue'
+import { Trash2, Plus, Download, Upload, Pencil } from 'lucide-vue-next'
 import { useCanvasManager } from '@/composables/useCanvasManager'
+import type { Canvas } from '@/stores/database'
 
 const {
   canvases,
@@ -80,6 +98,7 @@ const {
   switchCanvas,
   deleteCanvas,
   createCanvas,
+  renameCanvas,
   exportCurrentCanvas,
   exportAllCanvases,
   importCanvases
@@ -90,6 +109,10 @@ const newSlug = ref('')
 const newSlugInputRef = ref<HTMLInputElement>()
 const importFileRef = ref<HTMLInputElement>()
 const importResult = ref<{ imported: number; errors: string[] } | null>(null)
+
+const editingId = ref<string | null>(null)
+const editingSlug = ref('')
+const editInputRef = ref<HTMLInputElement[]>([])
 
 const fuzzyMatch = (text: string, query: string): boolean => {
   const t = text.toLowerCase()
@@ -106,8 +129,6 @@ const filteredCanvases = computed(() =>
   searchQuery.value ? canvases.value.filter(c => fuzzyMatch(c.slug, searchQuery.value)) : canvases.value
 )
 
-const isValidNewSlug = computed(() => /^[a-zA-Z0-9-]+$/.test(newSlug.value))
-
 const handleSwitch = async (slug: string) => {
   await switchCanvas(slug)
 }
@@ -119,13 +140,37 @@ const handleDelete = async (canvasId: string) => {
 }
 
 const handleCreate = async () => {
-  if (!isValidNewSlug.value) return
+  if (!newSlug.value.trim()) return
   const ok = await createCanvas(newSlug.value)
   if (ok) {
     newSlug.value = ''
   } else {
-    alert('Slug already exists or is invalid.')
+    alert('A canvas with that name already exists.')
   }
+}
+
+const startEdit = async (canvas: Canvas) => {
+  editingId.value = canvas.id!
+  editingSlug.value = canvas.slug
+  await nextTick()
+  const el = editInputRef.value[0]
+  el?.focus()
+  el?.select()
+}
+
+const cancelEdit = () => {
+  editingId.value = null
+  editingSlug.value = ''
+}
+
+const commitEdit = async (canvasId: string) => {
+  if (editingId.value !== canvasId) return
+  const trimmed = editingSlug.value.trim()
+  editingId.value = null
+  editingSlug.value = ''
+  if (!trimmed) return
+  const ok = await renameCanvas(canvasId, trimmed)
+  if (!ok) alert('A canvas with that name already exists.')
 }
 
 const handleImport = async (event: Event) => {

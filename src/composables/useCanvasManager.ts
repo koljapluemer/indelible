@@ -7,7 +7,7 @@ const elements = ref<CanvasElement[]>([])
 
 export function useCanvasManager() {
   const isValidSlug = (slug: string): boolean => {
-    return /^[a-zA-Z0-9-]+$/.test(slug) && slug.length > 0
+    return slug.trim().length > 0
   }
 
   const getCanvasFromUrl = (): string | null => {
@@ -47,17 +47,18 @@ export function useCanvasManager() {
   }
 
   const createCanvas = async (slug: string): Promise<boolean> => {
-    if (!isValidSlug(slug)) return false
+    const trimmed = slug.trim()
+    if (!isValidSlug(trimmed)) return false
 
     try {
-      // Check if slug already exists
-      const existing = await db.canvases.where('slug').equals(slug).first()
+      // Check if name already exists
+      const existing = await db.canvases.where('slug').equals(trimmed).first()
       if (existing) return false
 
       const now = Date.now()
       const canvas: Canvas = {
         id: crypto.randomUUID(),
-        slug,
+        slug: trimmed,
         createdAt: now,
         updatedAt: now
       }
@@ -65,7 +66,7 @@ export function useCanvasManager() {
       await db.canvases.add(canvas)
       currentCanvas.value = canvas
       elements.value = []
-      setCanvasInUrl(slug)
+      setCanvasInUrl(trimmed)
       await loadCanvases()
       return true
     } catch (error) {
@@ -108,6 +109,30 @@ export function useCanvasManager() {
       return true
     } catch (error) {
       console.error('Failed to delete canvas:', error)
+      return false
+    }
+  }
+
+  const renameCanvas = async (canvasId: string, newName: string): Promise<boolean> => {
+    const trimmed = newName.trim()
+    if (!trimmed) return false
+
+    try {
+      const existing = await db.canvases.where('slug').equals(trimmed).first()
+      if (existing && existing.id !== canvasId) return false
+
+      const now = Date.now()
+      await db.canvases.update(canvasId, { slug: trimmed, updatedAt: now })
+
+      if (currentCanvas.value?.id === canvasId) {
+        currentCanvas.value = { ...currentCanvas.value, slug: trimmed, updatedAt: now }
+        setCanvasInUrl(trimmed)
+      }
+
+      await loadCanvases()
+      return true
+    } catch (error) {
+      console.error('Failed to rename canvas:', error)
       return false
     }
   }
@@ -366,7 +391,8 @@ export function useCanvasManager() {
       return await loadCanvas(canvases.value[0].slug)
     }
 
-    return false
+    // No canvases at all — create a default one so the app is ready to use
+    return await createCanvas('default-canvas')
   }
 
   return {
@@ -382,6 +408,7 @@ export function useCanvasManager() {
     createCanvas,
     switchCanvas,
     deleteCanvas,
+    renameCanvas,
     addTextElement,
     addImageElement,
     addDrawingElement,
